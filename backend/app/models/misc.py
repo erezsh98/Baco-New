@@ -1,0 +1,37 @@
+from sqlalchemy import Column, Date, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
+from app.database import Base
+
+
+class ResetPassword(Base):
+    __tablename__ = "reset_password"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String(255))
+    token = Column(String(255))
+    date_created = Column(Date)
+
+
+class Contact(Base):
+    __tablename__ = "contact"
+
+    id = Column(Integer, primary_key=True)
+    first_name = Column(String(255))
+    last_name = Column(String(255))
+    phone_number = Column(String(255), nullable=True)
+    email = Column(String(255))
+    contact_type = Column(String(255), nullable=True)
+    content = Column(String(2000), nullable=True)
+    type_of = Column(String(255))
+    club_id = Column(Integer, ForeignKey("club.id"))
+
+    club = relationship("Club")
+
+
+class PelecardErrorList(Base):
+    __tablename__ = "pelecard_error_list"
+
+    id = Column(Integer, primary_key=True)
+    description = Column(String(500))
+    error_code = Column(String(10))

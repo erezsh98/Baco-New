@@ -1,0 +1,137 @@
+<title>BACO — Identity refresh</title>
+<style>
+  :root{
+    --green-deep:#0B4332; --green:#12694A; --green-mid:#0F5A3E;
+    --lime:#C6F24E; --cream:#F7FBF4; --ink:#0A2A1E;
+    --line:rgba(247,251,244,.14);
+    --sans:ui-sans-serif,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  .sheet{
+    font-family:var(--sans); color:var(--cream);
+    background:var(--green-deep);
+    padding:56px clamp(20px,5vw,72px) 72px; line-height:1.6;
+  }
+  .eyebrow{font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--lime);font-weight:600}
+  h1{font-size:clamp(34px,6vw,56px);font-weight:700;letter-spacing:-.02em;margin:.35em 0 .15em;text-wrap:balance}
+  .lede{max-width:60ch;color:rgba(247,251,244,.78);font-size:17px}
+  .grid{display:grid;gap:22px;margin-top:40px}
+  .panel{border:1px solid var(--line);border-radius:18px;padding:34px;display:flex;align-items:center;justify-content:center;min-height:220px}
+  .panel.hero{background:linear-gradient(135deg,var(--green) 0%,var(--green-deep) 100%);min-height:300px}
+  .panel.light{background:var(--cream)}
+  .two{grid-template-columns:1.6fr 1fr}
+  .icon-tile{width:150px;height:150px;border-radius:34px;background:linear-gradient(135deg,var(--green) 0%,var(--green-deep) 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .cap{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:rgba(247,251,244,.55);margin-top:14px;text-align:center}
+  .light .cap{color:rgba(10,42,30,.5)}
+  .palette{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:34px}
+  .sw{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .sw .chip{height:74px}
+  .sw .meta{padding:12px 14px;font-size:13px}
+  .sw .name{font-weight:600}
+  .sw .hex{color:rgba(247,251,244,.6);font-variant-numeric:tabular-nums;letter-spacing:.04em}
+  .notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;margin-top:44px;padding-top:34px;border-top:1px solid var(--line)}
+  .notes h3{font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--lime);margin-bottom:8px}
+  .notes p{font-size:15px;color:rgba(247,251,244,.78)}
+  @media(max-width:640px){.two{grid-template-columns:1fr}}
+</style>
+
+<div class="sheet">
+  <div class="eyebrow">Identity refresh</div>
+  <h1>BACO</h1>
+  <p class="lede">A modernized take on your court-booking mark &mdash; the leaping player still forms the &ldquo;A&rdquo;, and BACO still reads as <em>Book&nbsp;A&nbsp;Court&nbsp;Online</em>. Cleaner geometry, a sharper serve, and a court-green + tennis-lime palette with more energy.</p>
+
+  <div class="grid">
+    <div class="panel hero">
+      <svg width="70%" viewBox="0 0 860 340" role="img" aria-label="BACO logo">
+        <g fill="none" stroke="#F7FBF4" stroke-width="46">
+          <g transform="translate(40,0)">
+            <line x1="30" y1="40" x2="30" y2="260" stroke-linecap="butt"/>
+            <path d="M30 40 A55 55 0 0 1 30 150"/>
+            <path d="M30 150 A55 55 0 0 1 30 260"/>
+          </g>
+          <path transform="translate(398,0)" d="M151.5 88.5 A87 87 0 1 0 151.5 211.5" stroke-linecap="round"/>
+          <circle transform="translate(610,0)" cx="90" cy="150" r="87"/>
+        </g>
+        <g transform="translate(183,0)" stroke="#C6F24E" fill="#C6F24E">
+          <circle cx="95" cy="70" r="20" stroke="none"/>
+          <line x1="95" y1="90" x2="104" y2="165" stroke-width="20" stroke-linecap="round"/>
+          <line x1="99" y1="102" x2="150" y2="58" stroke-width="18" stroke-linecap="round"/>
+          <ellipse cx="163" cy="44" rx="16" ry="21" fill="none" stroke-width="6" transform="rotate(-25 163 44)"/>
+          <circle cx="184" cy="24" r="9" stroke="none"/>
+          <line x1="97" y1="108" x2="58" y2="140" stroke-width="18" stroke-linecap="round"/>
+          <line x1="102" y1="165" x2="52" y2="256" stroke-width="20" stroke-linecap="round"/>
+          <line x1="106" y1="165" x2="152" y2="256" stroke-width="20" stroke-linecap="round"/>
+          <line x1="75" y1="214" x2="131" y2="214" stroke-width="15" stroke-linecap="round"/>
+        </g>
+        <text x="428" y="308" text-anchor="middle" fill="#C6F24E" font-family="ui-sans-serif,'Segoe UI',Arial,sans-serif" font-size="26" font-weight="600" letter-spacing="7">BOOK A COURT ONLINE</text>
+      </svg>
+    </div>
+
+    <div class="two grid" style="margin-top:0">
+      <div>
+        <div class="panel light">
+          <svg width="78%" viewBox="0 0 860 340" role="img" aria-label="BACO logo on light">
+            <g fill="none" stroke="#0B4332" stroke-width="46">
+              <g transform="translate(40,0)">
+                <line x1="30" y1="40" x2="30" y2="260" stroke-linecap="butt"/>
+                <path d="M30 40 A55 55 0 0 1 30 150"/>
+                <path d="M30 150 A55 55 0 0 1 30 260"/>
+              </g>
+              <path transform="translate(450,0)" d="M151.5 88.5 A87 87 0 1 0 151.5 211.5" stroke-linecap="round"/>
+              <circle transform="translate(680,0)" cx="90" cy="150" r="87"/>
+            </g>
+            <g transform="translate(183,0)" stroke="#12694A" fill="#12694A">
+              <circle cx="95" cy="70" r="20" stroke="none"/>
+              <line x1="95" y1="90" x2="104" y2="165" stroke-width="20" stroke-linecap="round"/>
+              <line x1="99" y1="102" x2="150" y2="58" stroke-width="18" stroke-linecap="round"/>
+              <ellipse cx="163" cy="44" rx="16" ry="21" fill="none" stroke-width="6" transform="rotate(-25 163 44)"/>
+              <circle cx="184" cy="24" r="9" stroke="none"/>
+              <line x1="97" y1="108" x2="58" y2="140" stroke-width="18" stroke-linecap="round"/>
+              <line x1="102" y1="165" x2="52" y2="256" stroke-width="20" stroke-linecap="round"/>
+              <line x1="106" y1="165" x2="152" y2="256" stroke-width="20" stroke-linecap="round"/>
+              <line x1="75" y1="214" x2="131" y2="214" stroke-width="15" stroke-linecap="round"/>
+            </g>
+            <text x="428" y="308" text-anchor="middle" fill="#12694A" font-family="ui-sans-serif,'Segoe UI',Arial,sans-serif" font-size="26" font-weight="600" letter-spacing="7">BOOK A COURT ONLINE</text>
+          </svg>
+        </div>
+        <div class="cap">On light backgrounds</div>
+      </div>
+      <div>
+        <div class="panel">
+          <div>
+            <div class="icon-tile">
+              <svg width="82" height="82" viewBox="0 0 210 300" role="img" aria-label="BACO app icon">
+                <g stroke="#C6F24E" fill="#C6F24E">
+                  <circle cx="95" cy="70" r="20" stroke="none"/>
+                  <line x1="95" y1="90" x2="104" y2="165" stroke-width="20" stroke-linecap="round"/>
+                  <line x1="99" y1="102" x2="150" y2="58" stroke-width="18" stroke-linecap="round"/>
+                  <ellipse cx="163" cy="44" rx="16" ry="21" fill="none" stroke-width="6" transform="rotate(-25 163 44)"/>
+                  <circle cx="184" cy="24" r="9" stroke="none"/>
+                  <line x1="97" y1="108" x2="58" y2="140" stroke-width="18" stroke-linecap="round"/>
+                  <line x1="102" y1="165" x2="52" y2="256" stroke-width="20" stroke-linecap="round"/>
+                  <line x1="106" y1="165" x2="152" y2="256" stroke-width="20" stroke-linecap="round"/>
+                  <line x1="75" y1="214" x2="131" y2="214" stroke-width="15" stroke-linecap="round"/>
+                </g>
+              </svg>
+            </div>
+            <div class="cap">App icon / favicon</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="palette">
+    <div class="sw"><div class="chip" style="background:#0B4332"></div><div class="meta"><div class="name">Court Green</div><div class="hex">#0B4332</div></div></div>
+    <div class="sw"><div class="chip" style="background:#12694A"></div><div class="meta"><div class="name">Court Green Mid</div><div class="hex">#12694A</div></div></div>
+    <div class="sw"><div class="chip" style="background:#C6F24E"></div><div class="meta"><div class="name">Tennis Lime</div><div class="hex">#C6F24E</div></div></div>
+    <div class="sw"><div class="chip" style="background:#F7FBF4"></div><div class="meta"><div class="name">Off White</div><div class="hex">#F7FBF4</div></div></div>
+    <div class="sw"><div class="chip" style="background:#0A2A1E"></div><div class="meta"><div class="name">Ink</div><div class="hex">#0A2A1E</div></div></div>
+  </div>
+
+  <div class="notes">
+    <div><h3>What changed</h3><p>The player is now one continuous serve gesture — racket up, ball in play — instead of a static crouch. Letters are geometric and evenly weighted.</p></div>
+    <div><h3>Type</h3><p>Pair the mark with a geometric sans such as Space&nbsp;Grotesk or Outfit for headings, Work&nbsp;Sans for body copy on the site.</p></div>
+    <div><h3>Usage</h3><p>Lime player stays constant; letters flip white on green grounds, court-green on light grounds. Keep clear space equal to the “O” height.</p></div>
+  </div>
+</div>

@@ -1,0 +1,262 @@
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
+
+from app.auth.dependencies import require_admin
+from app.database import get_db
+from app.models.club import Club, ClubManager
+from app.models.ticket import ClubCustomerPermittedTicket
+from app.models.court import AvailableCourtSlot
+from app.models.order import CourtOrder
+from app.models.user import User
+from app.services.scheduler import rebuild
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+class OrderOut(BaseModel):
+    id: int
+    order_id: int
+    user_name: str
+    club_name: str
+    court_number: int
+    date: date
+    hour: int
+    amount: float | None
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/orders")
+def club_orders(
+    from_date: date | None = None,
+    to_date: date | None = None,
+    date: date | None = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    if date and not from_date:
+        from_date = date
+    if date and not to_date:
+        to_date = date
+    manager = db.query(ClubManager).filter(ClubManager.user_id == admin.id).first()
+    if not manager:
+        raise HTTPException(status_code=403, detail="Not a club manager")
+
+    query = (
+        db.query(CourtOrder)
+        .join(AvailableCourtSlot, CourtOrder.id == AvailableCourtSlot.order_id)
+        .filter(CourtOrder.is_final == "Y")
+    )
+    if from_date:
+        query = query.filter(AvailableCourtSlot.curdate >= from_date)
+    if to_date:
+        query = query.filter(AvailableCourtSlot.curdate <= to_date)
+
+    orders = query.all()
+    result = []
+    for o in orders:
+        slot = o.slot
+        if not slot:
+            continue
+        tmpl = slot.rental_template
+        if tmpl.club_id != manager.club_id:
+            continue
+        status = "canceled" if o.is_final == "C" else "completed" if o.is_final == "Y" else "pending"
+        result.append({
+            "id": o.id,
+            "order_id": o.order_id,
+            "user_name": f"{o.user.first_name} {o.user.last_name}",
+            "user_phone": o.user.phone_number or "",
+            "club_name": tmpl.club.club_name,
+            "court_number": tmpl.court_number,
+            "date": str(slot.curdate),
+            "hour": slot.hour,
+            "minutes_offset": tmpl.minutes_offset or 0,
+            "total_price": o.amount or 0,
+            "status": status,
+            "payment_method": "ticket" if o.customer_ticket_id else "credit",
+        })
+    return result
+
+
+@router.delete("/orders/{order_id}")
+def cancel_order(order_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    order = db.query(CourtOrder).filter(CourtOrder.id == order_id, CourtOrder.is_final == "Y").first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    slot = order.slot
+    from app.services.email import send_cancellation_email
+    send_cancellation_email(order, is_user=False)   # to the club: "בקשה לזיכוי"
+    order.is_final = "C"
+    if slot:
+        slot.taken = None
+        slot.order_id = None
+    db.commit()
+
+    # TODO: send cancellation SMS + create credit ticket (not yet ported)
+    return {"message": "Order cancelled"}
+
+
+@router.post("/orders/{order_id}/cancel")
+def cancel_order_post(order_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    order = db.query(CourtOrder).filter(CourtOrder.id == order_id, CourtOrder.is_final == "Y").first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    slot = order.slot
+    from app.services.email import send_cancellation_email
+    send_cancellation_email(order, is_user=False)   # to the club: "בקשה לזיכוי"
+    order.is_final = "C"
+    if slot:
+        slot.taken = None
+        slot.order_id = None
+    db.commit()
+    return {"message": "Order cancelled"}
+
+
+SUBSCRIPTION_TYPE = "מנוי"
+CREDIT_TYPE = "זיכוי"
+
+
+@router.get("/clubs/{club_id}/groups")
+def get_club_groups(club_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """
+    Groups a user can be assigned to: the club's ClubTickets, excluding the
+    special '0' and credit ('זיכוי') types. Mirrors the old group dropdown.
+    """
+    from app.models.ticket import ClubTicket
+    tickets = db.query(ClubTicket).filter(
+        ClubTicket.club_id == club_id,
+        ClubTicket.ticket_type != "0",
+        ClubTicket.ticket_type != CREDIT_TYPE,
+    ).all()
+    return [
+        {"id": t.id, "name": t.description or t.ticket_type, "ticket_type": t.ticket_type}
+        for t in tickets
+    ]
+
+
+@router.get("/clubs/{club_id}/users")
+def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    from app.models.ticket import ClubTicket
+    permits = db.query(ClubCustomerPermittedTicket).filter(
+        ClubCustomerPermittedTicket.club_id == club_id
+    ).all()
+    result = []
+    for p in permits:
+        u = p.user
+        if not u:
+            continue
+        # resolve a friendly group name from a ClubTicket of the same type
+        ticket = db.query(ClubTicket).filter(
+            ClubTicket.club_id == club_id,
+            ClubTicket.ticket_type == p.ticket_type,
+        ).first()
+        result.append({
+            "id": p.id,
+            "user_id": u.id,
+            "user_name": f"{u.first_name} {u.last_name}",
+            "email": u.username,
+            "phone": u.phone_number or "",
+            "group": ticket.description if ticket and ticket.description else p.ticket_type,
+            "ticket_type": p.ticket_type,
+            "end_date": str(p.end_date) if p.end_date else None,
+        })
+    return result
+
+
+class AddUserBody(BaseModel):
+    email_or_phone: str
+    group_id: int          # ClubTicket id
+    end_date: date
+
+
+@router.post("/clubs/{club_id}/users")
+def add_club_user(club_id: int, body: AddUserBody, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """
+    Add a user to a club group. Mirrors ClubCustomerPermittedTicketController:
+    resolve the user by email (then phone), derive the group's ticket_type,
+    reject duplicate active memberships, then create the permission. If the
+    group is a subscription (מנוי), also grant an unlimited subscription ticket.
+    """
+    from app.models.ticket import ClubTicket, CustomerTicket
+
+    group = db.query(ClubTicket).filter(ClubTicket.id == body.group_id, ClubTicket.club_id == club_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    ticket_type = (group.ticket_type or "").strip()
+
+    # find user by email, then by phone (digits only)
+    ident = body.email_or_phone.strip()
+    user = db.query(User).filter(User.username == ident).first()
+    if not user:
+        phone_digits = "".join(ch for ch in ident if ch.isdigit())
+        if phone_digits:
+            user = db.query(User).filter(User.phone_number == phone_digits).first()
+            if not user:
+                # tolerate stored phone numbers that contain separators
+                candidates = db.query(User).filter(User.phone_number.isnot(None)).all()
+                user = next((u for u in candidates if "".join(c for c in (u.phone_number or "") if c.isdigit()) == phone_digits), None)
+    if not user:
+        raise HTTPException(status_code=404, detail="לא נמצא משתמש")
+
+    today = date.today()
+    existing = db.query(ClubCustomerPermittedTicket).filter(
+        ClubCustomerPermittedTicket.club_id == club_id,
+        ClubCustomerPermittedTicket.user_id == user.id,
+        ClubCustomerPermittedTicket.ticket_type == ticket_type,
+        or_(
+            ClubCustomerPermittedTicket.end_date.is_(None),
+            ClubCustomerPermittedTicket.end_date > today,
+        ),
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"למשתמש כבר קיים מנוי פעיל בקבוצה זו")
+
+    permit = ClubCustomerPermittedTicket(
+        club_id=club_id, user_id=user.id, ticket_type=ticket_type, end_date=body.end_date,
+    )
+    db.add(permit)
+
+    # Subscription group → also grant an unlimited subscription ticket.
+    if ticket_type == SUBSCRIPTION_TYPE:
+        db.add(CustomerTicket(
+            user_id=user.id,
+            club_ticket_id=group.id,
+            cur_num_of_punches=-1000,
+            end_date=body.end_date,
+            approval_number="subscr",
+            ticket_cost=group.ticket_cost,
+        ))
+
+    db.commit()
+
+    from app.services.email import send_add_to_group_email
+    club = db.query(Club).filter(Club.id == club_id).first()
+    send_add_to_group_email(user, club, body.end_date, ticket_type)
+
+    return {
+        "message": f"המשתמש {user.first_name} {user.last_name} צורף לקבוצה {group.description or ticket_type}",
+        "user_name": f"{user.first_name} {user.last_name}",
+    }
+
+
+@router.delete("/permissions/{permit_id}")
+def remove_permission(permit_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    p = db.query(ClubCustomerPermittedTicket).filter(ClubCustomerPermittedTicket.id == permit_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(p)
+    db.commit()
+    return {"message": "Removed"}
+
+
+@router.post("/rebuild")
+def trigger_rebuild(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    rebuild(db)
+    return {"message": "Availability rebuilt"}

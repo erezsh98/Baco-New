@@ -1,0 +1,66 @@
+<title>BACO — font options</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@700;800&family=Montserrat:wght@700;800&family=Nunito:wght@800;900&family=Outfit:wght@600;700;800&family=Baloo+2:wght@700;800&family=Sora:wght@700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#20340f;font-family:'Outfit',sans-serif}
+  .wrap{padding:34px clamp(16px,4vw,48px) 60px;display:grid;gap:26px}
+  .opt{
+    position:relative;border-radius:20px;padding:38px 24px 30px;
+    background:linear-gradient(160deg,#6FA22E 0%,#4C7B22 46%,#375A18 100%);
+    box-shadow:0 10px 30px rgba(0,0,0,.28);overflow:hidden;
+  }
+  .name{position:absolute;top:14px;left:16px;font-family:'Outfit',sans-serif;font-weight:600;
+        font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#20340f;
+        background:rgba(255,255,255,.82);padding:5px 11px;border-radius:20px}
+  .lock{display:flex;align-items:center;justify-content:center;gap:4px;color:#fff}
+  .ltr{font-weight:800;font-size:clamp(52px,11vw,104px);line-height:.9;letter-spacing:-.03em}
+  .fig{width:clamp(46px,9vw,84px);height:auto;color:#CFE84F;margin:0 4px 6px}
+  .sub{margin-top:14px;text-align:center;color:#EAF3D8;font-size:clamp(11px,2.6vw,16px);
+       letter-spacing:.4em;font-weight:500;padding-left:.4em}
+  .poppins .ltr{font-family:'Poppins'}      .poppins .sub{font-family:'Poppins';font-weight:400;letter-spacing:.42em}
+  .montserrat .ltr{font-family:'Montserrat'} .montserrat .sub{font-family:'Montserrat';font-weight:400;letter-spacing:.44em}
+  .nunito .ltr{font-family:'Nunito';font-weight:900} .nunito .sub{font-family:'Nunito';font-weight:600;letter-spacing:.4em}
+  .outfit .ltr{font-family:'Outfit'}         .outfit .sub{font-family:'Outfit';font-weight:400;letter-spacing:.42em}
+  .baloo .ltr{font-family:'Baloo 2'}         .baloo .sub{font-family:'Baloo 2';font-weight:500;letter-spacing:.36em}
+  .sora .ltr{font-family:'Sora'}             .sora .sub{font-family:'Sora';font-weight:400;letter-spacing:.4em}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="player" viewBox="0 0 120 150">
+    <circle cx="60" cy="24" r="14" fill="currentColor"/>
+    <g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="60" y1="42" x2="26" y2="18" stroke-width="12"/>
+      <line x1="60" y1="42" x2="94" y2="18" stroke-width="12"/>
+      <line x1="60" y1="42" x2="60" y2="92" stroke-width="16"/>
+      <line x1="60" y1="92" x2="26" y2="142" stroke-width="16"/>
+      <line x1="60" y1="92" x2="94" y2="142" stroke-width="16"/>
+      <line x1="41" y1="118" x2="79" y2="118" stroke-width="12"/>
+    </g>
+  </symbol>
+</svg>
+
+<div class="wrap">
+  <div class="opt poppins"><span class="name">Poppins</span>
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div></div>
+
+  <div class="opt montserrat"><span class="name">Montserrat</span>
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div></div>
+
+  <div class="opt nunito"><span class="name">Nunito &middot; rounded</span>
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div></div>
+
+  <div class="opt outfit"><span class="name">Outfit</span>
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div></div>
+
+  <div class="opt baloo"><span class="name">Baloo 2 &middot; rounded</span>
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div></div>
+
+  <div class="opt sora"><span class="name">Sora</span>
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div></div>
+</div>

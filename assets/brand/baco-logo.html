@@ -1,0 +1,58 @@
+<title>BACO — logo (Nunito)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;800;900&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#20340f;font-family:'Nunito',sans-serif;padding:34px clamp(16px,4vw,48px) 56px}
+  .row{display:grid;gap:26px}
+  .badge{
+    border-radius:22px;padding:44px 30px;
+    background:linear-gradient(160deg,#6FA22E 0%,#4C7B22 46%,#375A18 100%);
+    box-shadow:0 12px 34px rgba(0,0,0,.3);
+  }
+  .light{background:#F7FBF4}
+  .lock{display:flex;align-items:center;justify-content:center;gap:2px}
+  .ltr{font-weight:900;font-size:clamp(58px,13vw,120px);line-height:.82;letter-spacing:-.04em;color:#fff}
+  .light .ltr{color:#2F5A14}
+  .fig{width:clamp(52px,10vw,98px);height:auto;color:#CFE84F;margin:0 6px 8px}
+  .light .fig{color:#5E8F27}
+  .sub{margin-top:16px;text-align:center;color:#EAF3D8;font-weight:600;
+       font-size:clamp(12px,2.7vw,17px);letter-spacing:.4em;padding-left:.4em}
+  .light .sub{color:#4C7B22}
+  .mini{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+  .tile{width:132px;height:132px;border-radius:30px;flex:0 0 auto;
+        background:linear-gradient(160deg,#6FA22E 0%,#4C7B22 50%,#375A18 100%);
+        display:flex;align-items:center;justify-content:center;box-shadow:0 10px 26px rgba(0,0,0,.28)}
+  .tile .fig{width:64px;margin:0}
+  .tilelbl{color:#EAF3D8;font-weight:600;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="player" viewBox="0 0 120 150">
+    <circle cx="60" cy="24" r="14" fill="currentColor"/>
+    <g stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="60" y1="42" x2="26" y2="18" stroke-width="12"/>
+      <line x1="60" y1="42" x2="94" y2="18" stroke-width="12"/>
+      <line x1="60" y1="42" x2="60" y2="92" stroke-width="16"/>
+      <line x1="60" y1="92" x2="26" y2="142" stroke-width="16"/>
+      <line x1="60" y1="92" x2="94" y2="142" stroke-width="16"/>
+      <line x1="41" y1="118" x2="79" y2="118" stroke-width="12"/>
+    </g>
+  </symbol>
+</svg>
+
+<div class="row">
+  <div class="badge">
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div>
+  </div>
+
+  <div class="badge light">
+    <div class="lock"><span class="ltr">B</span><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg><span class="ltr">CO</span></div>
+    <div class="sub">BOOK A COURT ONLINE</div>
+  </div>
+
+  <div class="mini">
+    <div class="tile"><svg class="fig" viewBox="0 0 120 150"><use href="#player"/></svg></div>
+    <span class="tilelbl">App icon / favicon</span>
+  </div>
+</div>

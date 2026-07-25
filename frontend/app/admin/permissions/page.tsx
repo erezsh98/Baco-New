@@ -1,0 +1,151 @@
+"use client";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import api from "@/lib/api";
+
+type Club = { id: number; club_name: string };
+type Group = { id: number; name: string; ticket_type: string };
+type Permit = {
+  id: number; user_id: number; user_name: string;
+  email: string; phone: string; group: string; end_date: string | null;
+};
+
+export default function PermissionsPage() {
+  const router = useRouter();
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [selectedClub, setSelectedClub] = useState<number | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [permits, setPermits] = useState<Permit[]>([]);
+
+  const [form, setForm] = useState({ email_or_phone: "", group_id: "", end_date: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    api.get("/clubs").then(r => setClubs(r.data)).catch(() => router.push("/search"));
+  }, []);
+
+  useEffect(() => {
+    if (selectedClub) {
+      api.get(`/admin/clubs/${selectedClub}/groups`).then(r => setGroups(r.data)).catch(() => setGroups([]));
+      loadPermits();
+    }
+  }, [selectedClub]);
+
+  function loadPermits() {
+    if (!selectedClub) return;
+    api.get(`/admin/clubs/${selectedClub}/users`).then(r => setPermits(r.data)).catch(() => {});
+  }
+
+  async function addUser(e: React.FormEvent) {
+    e.preventDefault();
+    setError(""); setSuccess("");
+    if (!selectedClub) return;
+    setLoading(true);
+    try {
+      const res = await api.post(`/admin/clubs/${selectedClub}/users`, {
+        email_or_phone: form.email_or_phone,
+        group_id: Number(form.group_id),
+        end_date: form.end_date,
+      });
+      setSuccess(res.data.message || "המשתמש צורף בהצלחה");
+      setForm({ email_or_phone: "", group_id: "", end_date: "" });
+      loadPermits();
+    } catch (e: any) {
+      setError(e.response?.data?.detail || "שגיאה בהוספת המשתמש");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function removePermit(id: number) {
+    try {
+      await api.delete(`/admin/permissions/${id}`);
+      setPermits(p => p.filter(x => x.id !== id));
+    } catch {
+      setError("שגיאה בהסרה");
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">ניהול הרשאות מועדון</h1>
+          <Link href="/admin" className="text-sm text-blue-600 hover:underline">ניהול הזמנות</Link>
+        </div>
+
+        <div className="bg-white rounded-xl shadow p-4 mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">בחר מועדון</label>
+          <select value={selectedClub ?? ""} onChange={e => setSelectedClub(Number(e.target.value))}
+            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">בחר מועדון...</option>
+            {clubs.map(c => <option key={c.id} value={c.id}>{c.club_name}</option>)}
+          </select>
+        </div>
+
+        {selectedClub && (
+          <>
+            <div className="bg-white rounded-xl shadow p-4 mb-4">
+              <h2 className="font-semibold text-gray-700 mb-3">הוספת משתמש לקבוצה</h2>
+              <form onSubmit={addUser} className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">אימייל או טלפון</label>
+                  <input value={form.email_or_phone} required
+                    onChange={e => setForm({ ...form, email_or_phone: e.target.value })}
+                    placeholder="example@mail.com או 0501234567"
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">קבוצה</label>
+                  <select value={form.group_id} required
+                    onChange={e => setForm({ ...form, group_id: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">בחר קבוצה...</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">תאריך סיום</label>
+                  <input type="date" value={form.end_date} required
+                    onChange={e => setForm({ ...form, end_date: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+
+                {error && <p className="text-red-600 text-sm">{error}</p>}
+                {success && <p className="text-green-700 text-sm">{success}</p>}
+
+                <button type="submit" disabled={loading}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {loading ? "מוסיף..." : "צרף לקבוצה"}
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-white rounded-xl shadow p-4">
+              <h2 className="font-semibold text-gray-700 mb-3">משתמשים מורשים ({permits.length})</h2>
+              {permits.length === 0 && <p className="text-sm text-gray-400">אין משתמשים מורשים</p>}
+              <div className="space-y-2">
+                {permits.map(p => (
+                  <div key={p.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">{p.user_name}</p>
+                      <p className="text-xs text-gray-400">{p.email} | {p.phone}</p>
+                      <p className="text-xs text-blue-600">קבוצה: {p.group} | בתוקף עד: {p.end_date || "—"}</p>
+                    </div>
+                    <button onClick={() => removePermit(p.id)}
+                      className="bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600">
+                      הסר
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}

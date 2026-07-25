@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" role="img" aria-label="BACO — Book A Court Online">
+  <title>BACO</title>
+  <desc>BACO wordmark: the letter A formed by a leaping tennis player.</desc>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;900&amp;display=swap');
+    .ltr{font-family:'Nunito',sans-serif;font-weight:900;font-size:200px;letter-spacing:-8px;fill:#FFFFFF}
+    .tag{font-family:'Nunito',sans-serif;font-weight:600;font-size:26px;letter-spacing:11px;fill:#EAF3D8}
+  </style>
+
+  <text class="ltr" x="350" y="205" text-anchor="end">B</text>
+
+  <g transform="translate(360,35) scale(1.2)" fill="#CFE84F">
+    <circle cx="60" cy="24" r="14"/>
+    <g stroke="#CFE84F" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="60" y1="42" x2="26" y2="18" stroke-width="12"/>
+      <line x1="60" y1="42" x2="94" y2="18" stroke-width="12"/>
+      <line x1="60" y1="42" x2="60" y2="92" stroke-width="16"/>
+      <line x1="60" y1="92" x2="26" y2="142" stroke-width="16"/>
+      <line x1="60" y1="92" x2="94" y2="142" stroke-width="16"/>
+      <line x1="41" y1="118" x2="79" y2="118" stroke-width="12"/>
+    </g>
+  </g>
+
+  <text class="ltr" x="515" y="205" text-anchor="start">CO</text>
+
+  <text class="tag" x="482" y="258" text-anchor="middle">BOOK A COURT ONLINE</text>
+</svg>
