@@ -63,54 +63,54 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-green-50 p-4"><p className="text-center text-gray-500 mt-8">טוען...</p></main>;
+    return <main className="min-h-screen bg-mint p-4"><p className="text-center text-muted mt-8">טוען...</p></main>;
   }
 
   return (
-    <main className="min-h-screen bg-green-50 p-4">
+    <main className="min-h-screen bg-mint p-4">
       <div className="max-w-md mx-auto">
-        <h1 className="text-2xl font-bold text-green-800 mb-6 text-center">כרטיס אישי</h1>
+        <h1 className="text-2xl font-bold text-court-dark mb-6 text-center">עדכון פרטים</h1>
 
         <form onSubmit={save} className="bg-white rounded-2xl shadow p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+            <label className="block text-sm font-medium text-ink mb-1">אימייל</label>
             <input value={email} disabled
-              className="w-full border rounded-lg px-3 py-2 bg-gray-100 text-gray-500" />
+              className="w-full border rounded-lg px-3 py-2 bg-mint text-muted" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
+            <label className="block text-sm font-medium text-ink mb-1">שם פרטי</label>
             <input name="first_name" required value={form.first_name} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
+            <label className="block text-sm font-medium text-ink mb-1">שם משפחה</label>
             <input name="last_name" required value={form.last_name} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+            <label className="block text-sm font-medium text-ink mb-1">טלפון</label>
             <input name="phone_number" value={form.phone_number} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
 
           <hr className="my-2" />
-          <p className="text-sm text-gray-500">שינוי סיסמה (השאר ריק כדי לא לשנות)</p>
+          <p className="text-sm text-muted">שינוי סיסמה (השאר ריק כדי לא לשנות)</p>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה חדשה</label>
+            <label className="block text-sm font-medium text-ink mb-1">סיסמה חדשה</label>
             <input name="password" type="password" value={form.password} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">אימות סיסמה</label>
+            <label className="block text-sm font-medium text-ink mb-1">אימות סיסמה</label>
             <input name="confirm" type="password" value={form.confirm} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
-          {success && <p className="text-green-700 text-sm">הפרטים עודכנו בהצלחה!</p>}
+          {success && <p className="text-court text-sm">הפרטים עודכנו בהצלחה!</p>}
 
           <button type="submit" disabled={saving}
-            className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition disabled:opacity-50">
+            className="w-full bg-court text-white py-2 rounded-lg hover:bg-court-dark transition disabled:opacity-50">
             {saving ? "שומר..." : "שמור שינויים"}
           </button>
         </form>

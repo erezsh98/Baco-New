@@ -160,12 +160,16 @@ def list_club_tickets(club_id: int, db: Session = Depends(get_db), current_user:
 
 
 @router.get("/my")
-def list_my_tickets(club_id: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    query = db.query(CustomerTicket).filter(
-        CustomerTicket.user_id == current_user.id,
-        CustomerTicket.end_date >= date.today(),
-        CustomerTicket.cur_num_of_punches > 0,
-    )
+def list_my_tickets(club_id: int | None = None, include_all: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    today = date.today()
+    query = db.query(CustomerTicket).filter(CustomerTicket.user_id == current_user.id)
+    # By default return only valid (in-date, punches remaining) tickets.
+    # include_all=true also returns used-up / expired tickets, each flagged is_valid.
+    if not include_all:
+        query = query.filter(
+            CustomerTicket.end_date >= today,
+            CustomerTicket.cur_num_of_punches > 0,
+        )
     tickets = query.all()
     result = []
     for t in tickets:
@@ -174,14 +178,20 @@ def list_my_tickets(club_id: int | None = None, db: Session = Depends(get_db), c
             continue
         if club_id and ct.club_id != club_id:
             continue
+        unlimited = ct.total_num_of_punches == UNLIMITED_PUNCHES
+        punches_left = t.cur_num_of_punches or 0
+        not_expired = t.end_date is not None and t.end_date >= today
+        is_valid = not_expired and (unlimited or punches_left > 0)
         result.append({
             "id": t.id,
             "club_ticket_id": t.club_ticket_id,
             "ticket_name": ct.description or "",
             "club_name": ct.club.club_name if ct.club else "",
             "total_punches": ct.total_num_of_punches or 0,
-            "punches_left": t.cur_num_of_punches or 0,
+            "punches_left": punches_left,
             "valid_until": str(t.end_date),
+            "unlimited": unlimited,
+            "is_valid": is_valid,
         })
     return result
 

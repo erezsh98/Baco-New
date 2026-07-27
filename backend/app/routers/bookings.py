@@ -63,6 +63,7 @@ class BookingOut(BaseModel):
     court_number: int
     date: date
     hour: int
+    minutes_offset: int = 0
     amount: float | None
     is_final: str | None
 
@@ -111,6 +112,7 @@ def create_booking(req: CreateBookingRequest, db: Session = Depends(get_db), cur
         court_number=template.court_number,
         date=slot.curdate,
         hour=slot.hour,
+        minutes_offset=template.minutes_offset or 0,
         amount=order.amount,
         is_final=order.is_final,
     )
@@ -126,6 +128,7 @@ def _booking_out(order: CourtOrder) -> BookingOut:
         court_number=template.court_number if template else 0,
         date=slot.curdate if slot else order.order_date,
         hour=slot.hour if slot else 0,
+        minutes_offset=(template.minutes_offset or 0) if template else 0,
         amount=order.amount,
         is_final=order.is_final,
     )

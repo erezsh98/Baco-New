@@ -43,32 +43,32 @@ export default function ChatWidget() {
     <div className="fixed bottom-6 left-6 z-50">
       {open ? (
         <div className="bg-white rounded-2xl shadow-2xl w-80 flex flex-col" style={{ height: 420 }}>
-          <div className="bg-green-700 text-white px-4 py-3 rounded-t-2xl flex justify-between items-center">
+          <div className="bg-court text-white px-4 py-3 rounded-t-2xl flex justify-between items-center">
             <span className="font-semibold">עוזר TennisLine</span>
             <button onClick={() => setOpen(false)}><X size={18} /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {messages.length === 0 && (
-              <p className="text-gray-400 text-sm text-center mt-4">שלום! איך אוכל לעזור לך להזמין מגרש?</p>
+              <p className="text-muted text-sm text-center mt-4">שלום! איך אוכל לעזור לך להזמין מגרש?</p>
             )}
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>
-                <div className={`rounded-xl px-3 py-2 text-sm max-w-[80%] ${m.role === "user" ? "bg-green-100" : "bg-gray-100"}`}>
+                <div className={`rounded-xl px-3 py-2 text-sm max-w-[80%] ${m.role === "user" ? "bg-mint" : "bg-mint"}`}>
                   {m.text}
                 </div>
               </div>
             ))}
-            {loading && <p className="text-gray-400 text-xs text-center">מעבד...</p>}
+            {loading && <p className="text-muted text-xs text-center">מעבד...</p>}
           </div>
           <div className="border-t p-3 flex gap-2">
             <input
-              className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+              className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-court"
               placeholder="הקלד הודעה..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
             />
-            <button onClick={send} className="bg-green-700 text-white rounded-lg p-2 hover:bg-green-800">
+            <button onClick={send} className="bg-court text-white rounded-lg p-2 hover:bg-court-dark">
               <Send size={16} />
             </button>
           </div>
@@ -76,7 +76,7 @@ export default function ChatWidget() {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="bg-green-700 text-white rounded-full p-4 shadow-xl hover:bg-green-800 transition"
+          className="bg-court text-white rounded-full p-4 shadow-xl hover:bg-court-dark transition"
         >
           <MessageCircle size={24} />
         </button>

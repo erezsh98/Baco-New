@@ -6,7 +6,7 @@ import api from "@/lib/api";
 type Booking = {
   id: number; club_name: string; court_number: number;
   date: string; hour: number; minutes_offset: number;
-  status: string; total_price: number;
+  amount: number | null;
 };
 
 export default function MyBookingsPage() {
@@ -44,20 +44,20 @@ export default function MyBookingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-green-50 p-4">
+    <main className="min-h-screen bg-mint p-4">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-green-800">הזמנות עתידיות</h1>
-          <Link href="/my-bookings/past" className="text-sm text-green-700 hover:underline">הזמנות עבר</Link>
+          <h1 className="text-2xl font-bold text-court-dark">הזמנות עתידיות</h1>
+          <Link href="/my-bookings/past" className="text-sm text-court hover:underline">הזמנות עבר</Link>
         </div>
 
         {error && <p className="text-red-600 text-sm mb-4 text-center">{error}</p>}
-        {loading && <p className="text-center text-gray-500">טוען...</p>}
+        {loading && <p className="text-center text-muted">טוען...</p>}
 
         {!loading && bookings.length === 0 && (
           <div className="bg-white rounded-2xl shadow p-8 text-center">
-            <p className="text-gray-500 mb-4">אין הזמנות עתידיות</p>
-            <Link href="/search" className="bg-green-700 text-white px-6 py-2 rounded-lg hover:bg-green-800">
+            <p className="text-muted mb-4">אין הזמנות עתידיות</p>
+            <Link href="/search" className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark">
               חפש מגרש
             </Link>
           </div>
@@ -67,9 +67,9 @@ export default function MyBookingsPage() {
           {bookings.map(b => (
             <div key={b.id} className="bg-white rounded-xl shadow p-4 flex items-center justify-between gap-4">
               <div>
-                <p className="font-semibold text-gray-800">{b.club_name} — מגרש {b.court_number}</p>
-                <p className="text-sm text-gray-500">{b.date} | {b.hour}:{String(b.minutes_offset).padStart(2, "0")}</p>
-                <p className="text-sm text-green-700 font-medium">₪{b.total_price}</p>
+                <p className="font-semibold text-ink">{b.club_name} — מגרש {b.court_number}</p>
+                <p className="text-sm text-muted">{b.date} | שעה {String(b.hour).padStart(2, "0")}:{String(b.minutes_offset ?? 0).padStart(2, "0")}</p>
+                <p className="text-sm text-court font-medium">₪{b.amount}</p>
               </div>
               <button onClick={() => cancel(b.id)} disabled={cancelId === b.id}
                 className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600 transition disabled:opacity-50">

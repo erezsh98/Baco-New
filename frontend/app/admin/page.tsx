@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Download } from "lucide-react";
 import api from "@/lib/api";
 
 type Order = {
@@ -62,42 +63,80 @@ export default function AdminPage() {
   }
 
   const statusLabel = (s: string) => s === "completed" ? "הושלם" : s === "canceled" ? "מבוטל" : "ממתין";
-  const statusColor = (s: string) => s === "completed" ? "bg-green-100 text-green-700" : s === "canceled" ? "bg-red-100 text-red-600" : "bg-yellow-100 text-yellow-700";
+  const statusColor = (s: string) => s === "completed" ? "bg-mint text-court" : s === "canceled" ? "bg-red-100 text-red-600" : "bg-yellow-100 text-yellow-700";
+
+  function exportExcel() {
+    if (orders.length === 0) return;
+    const headers = ["מזהה", "לקוח", "טלפון", "מועדון", "מגרש", "תאריך", "שעה", "מחיר", "אמצעי תשלום", "סטטוס"];
+    const rows = orders.map(o => [
+      o.id,
+      o.user_name,
+      o.user_phone,
+      o.club_name,
+      o.court_number,
+      o.date,
+      `${o.hour}:${String(o.minutes_offset).padStart(2, "0")}`,
+      o.total_price,
+      o.payment_method === "credit" ? "אשראי" : "כרטיסייה",
+      statusLabel(o.status),
+    ]);
+    const esc = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [headers, ...rows].map(r => r.map(esc).join(",")).join("\r\n");
+    // UTF-8 BOM so Excel renders Hebrew correctly
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `baco-orders_${fromDate}_${toDate}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
+    <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">ניהול הזמנות</h1>
+          <h1 className="text-2xl font-bold text-ink">ניהול הזמנות</h1>
           <div className="flex gap-4">
-            <Link href="/admin/schedule" className="text-sm text-blue-600 hover:underline">עריכת לוח זמנים</Link>
-            <Link href="/admin/permissions" className="text-sm text-blue-600 hover:underline">ניהול הרשאות</Link>
+            <Link href="/admin/schedule" className="text-sm text-court hover:underline">עריכת לוח זמנים</Link>
+            <Link href="/admin/permissions" className="text-sm text-court hover:underline">ניהול הרשאות</Link>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap gap-4 items-end">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">מתאריך</label>
+            <label className="block text-sm font-medium text-ink mb-1">מתאריך</label>
             <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">עד תאריך</label>
+            <label className="block text-sm font-medium text-ink mb-1">עד תאריך</label>
             <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <button onClick={load}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+            className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark transition">
             הצג דוח
+          </button>
+          <button onClick={exportExcel} disabled={orders.length === 0}
+            title="ייצוא ההזמנות המוצגות לקובץ אקסל"
+            className="ms-auto flex items-center gap-2 border border-court text-court px-5 py-2 rounded-lg font-semibold hover:bg-mint transition disabled:opacity-40 disabled:cursor-not-allowed">
+            <Download size={17} />
+            ייצוא לאקסל
           </button>
         </div>
 
         {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-        {loading && <p className="text-center text-gray-500">טוען...</p>}
-        {!loading && orders.length === 0 && <p className="text-center text-gray-500">אין הזמנות לטווח התאריכים</p>}
+        {loading && <p className="text-center text-muted">טוען...</p>}
+        {!loading && orders.length === 0 && <p className="text-center text-muted">אין הזמנות לטווח התאריכים</p>}
 
         {!loading && orders.length > 0 && (
-          <div className="flex gap-6 mb-3 text-sm text-gray-700">
+          <div className="flex gap-6 mb-3 text-sm text-ink">
             <span>סה"כ הזמנות: <strong>{orders.length}</strong></span>
             <span>סה"כ הכנסות: <strong>₪{totalRevenue}</strong></span>
           </div>
@@ -106,10 +145,11 @@ export default function AdminPage() {
         {orders.length > 0 && (
           <div className="bg-white rounded-xl shadow overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-800 text-white">
+              <thead className="bg-ink text-white">
                 <tr>
                   <th className="px-4 py-3 text-right">לקוח</th>
                   <th className="px-4 py-3 text-right">מגרש</th>
+                  <th className="px-4 py-3 text-right">תאריך</th>
                   <th className="px-4 py-3 text-right">שעה</th>
                   <th className="px-4 py-3 text-right">מחיר</th>
                   <th className="px-4 py-3 text-right">תשלום</th>
@@ -119,12 +159,13 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {orders.map((o, i) => (
-                  <tr key={o.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <tr key={o.id} className={i % 2 === 0 ? "bg-white" : "bg-canvas"}>
                     <td className="px-4 py-3">
                       <p>{o.user_name}</p>
-                      <p className="text-xs text-gray-400">{o.user_phone}</p>
+                      <p className="text-xs text-muted">{o.user_phone}</p>
                     </td>
                     <td className="px-4 py-3">{o.club_name} #{o.court_number}</td>
+                    <td className="px-4 py-3">{o.date}</td>
                     <td className="px-4 py-3">{o.hour}:{String(o.minutes_offset).padStart(2, "0")}</td>
                     <td className="px-4 py-3">₪{o.total_price}</td>
                     <td className="px-4 py-3">{o.payment_method === "credit" ? "אשראי" : "כרטיסייה"}</td>

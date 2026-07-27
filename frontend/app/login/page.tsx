@@ -40,15 +40,15 @@ function LoginForm() {
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
-      <h1 className="text-2xl font-bold text-green-800 mb-6 text-center">כניסה</h1>
+      <h1 className="text-2xl font-bold text-court-dark mb-6 text-center">כניסה</h1>
 
       {registered && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">
+        <div className="bg-mint border border-line text-court rounded-lg px-4 py-3 mb-4 text-sm">
           ההרשמה הצליחה! ניתן להתחבר עכשיו.
         </div>
       )}
       {reset && (
-        <div className="bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 mb-4 text-sm">
+        <div className="bg-mint border border-line text-court rounded-lg px-4 py-3 mb-4 text-sm">
           הסיסמה אופסה בהצלחה! אנא התחבר.
         </div>
       )}
@@ -61,43 +61,43 @@ function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+          <label className="block text-sm font-medium text-ink mb-1">אימייל</label>
           <input
             name="username"
             type="email"
             required
             value={form.username}
             onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+          <label className="block text-sm font-medium text-ink mb-1">סיסמה</label>
           <input
             name="password"
             type="password"
             required
             value={form.password}
             onChange={handleChange}
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition disabled:opacity-50 mt-2"
+          className="w-full bg-court text-white py-2 rounded-lg hover:bg-court-dark transition disabled:opacity-50 mt-2"
         >
           {loading ? "מתחבר..." : "כניסה"}
         </button>
       </form>
 
-      <p className="text-center text-sm text-gray-500 mt-4">
+      <p className="text-center text-sm text-muted mt-4">
         עדיין לא רשום?{" "}
-        <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"} className="text-green-700 hover:underline">הרשמה</Link>
+        <Link href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"} className="text-court hover:underline">הרשמה</Link>
       </p>
-      <p className="text-center text-sm text-gray-500 mt-2">
-        <Link href="/reset-password" className="text-green-600 hover:underline text-xs">שכחת סיסמה?</Link>
+      <p className="text-center text-sm text-muted mt-2">
+        <Link href="/reset-password" className="text-court hover:underline text-xs">שכחת סיסמה?</Link>
       </p>
     </div>
   );
@@ -105,8 +105,8 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-green-50 p-4">
-      <Suspense fallback={<div className="text-gray-500">טוען...</div>}>
+    <main className="min-h-screen flex items-center justify-center bg-mint p-4">
+      <Suspense fallback={<div className="text-muted">טוען...</div>}>
         <LoginForm />
       </Suspense>
     </main>

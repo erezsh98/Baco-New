@@ -42,9 +42,9 @@ function RegisterForm() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-green-50 p-4">
+    <main className="min-h-screen flex items-center justify-center bg-mint p-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-green-800 mb-6 text-center">הרשמה</h1>
+        <h1 className="text-2xl font-bold text-court-dark mb-6 text-center">הרשמה</h1>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 text-sm">
@@ -54,51 +54,51 @@ function RegisterForm() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">שם פרטי</label>
+            <label className="block text-sm font-medium text-ink mb-1">שם פרטי</label>
             <input
               name="first_name"
               type="text"
               required
               value={form.first_name}
               onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">שם משפחה</label>
+            <label className="block text-sm font-medium text-ink mb-1">שם משפחה</label>
             <input
               name="last_name"
               type="text"
               required
               value={form.last_name}
               onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+            <label className="block text-sm font-medium text-ink mb-1">אימייל</label>
             <input
               name="email"
               type="email"
               required
               value={form.email}
               onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+            <label className="block text-sm font-medium text-ink mb-1">טלפון</label>
             <input
               name="phone_number"
               type="tel"
               value={form.phone_number}
               onChange={handleChange}
               placeholder="050-0000000"
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+            <label className="block text-sm font-medium text-ink mb-1">סיסמה</label>
             <input
               name="password"
               type="password"
@@ -106,16 +106,16 @@ function RegisterForm() {
               minLength={6}
               value={form.password}
               onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court"
             />
           </div>
 
-          <label className="flex items-start gap-2 text-sm text-gray-700 mt-2">
+          <label className="flex items-start gap-2 text-sm text-ink mt-2">
             <input
               type="checkbox"
               checked={accepted}
               onChange={(e) => setAccepted(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-green-700"
+              className="mt-0.5 h-4 w-4 accent-court"
             />
             <span>
               קראתי ואני מסכים{" "}
@@ -123,7 +123,7 @@ function RegisterForm() {
                 href="/terms.pdf"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-green-700 underline hover:text-green-800"
+                className="text-court underline hover:text-court-dark"
               >
                 לתנאי התקנון
               </a>
@@ -133,15 +133,15 @@ function RegisterForm() {
           <button
             type="submit"
             disabled={loading || !accepted}
-            className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            className="w-full bg-court text-white py-2 rounded-lg hover:bg-court-dark transition disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
             {loading ? "נרשם..." : "הרשם"}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-4">
+        <p className="text-center text-sm text-muted mt-4">
           כבר רשום?{" "}
-          <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="text-green-700 hover:underline">
+          <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="text-court hover:underline">
             כניסה
           </Link>
         </p>
@@ -152,7 +152,7 @@ function RegisterForm() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-green-50"><p className="text-gray-500">טוען...</p></main>}>
+    <Suspense fallback={<main className="min-h-screen flex items-center justify-center bg-mint"><p className="text-muted">טוען...</p></main>}>
       <RegisterForm />
     </Suspense>
   );

@@ -42,9 +42,9 @@ export default function BuyTicketPage() {
 
   if (iframeHtml) {
     return (
-      <main className="min-h-screen bg-green-50 p-4">
+      <main className="min-h-screen bg-mint p-4">
         <div className="max-w-xl mx-auto bg-white rounded-2xl shadow p-4">
-          <h2 className="text-xl font-bold text-green-800 mb-4 text-center">תשלום כרטיסייה</h2>
+          <h2 className="text-xl font-bold text-court-dark mb-4 text-center">תשלום כרטיסייה</h2>
           <div dangerouslySetInnerHTML={{ __html: iframeHtml }} />
         </div>
       </main>
@@ -52,15 +52,15 @@ export default function BuyTicketPage() {
   }
 
   return (
-    <main className="min-h-screen bg-green-50 p-4">
+    <main className="min-h-screen bg-mint p-4">
       <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold text-green-800 mb-6 text-center">רכישת כרטיסייה</h1>
+        <h1 className="text-2xl font-bold text-court-dark mb-6 text-center">רכישת כרטיסייה</h1>
 
         <div className="bg-white rounded-2xl shadow p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">מועדון</label>
+            <label className="block text-sm font-medium text-ink mb-1">מועדון</label>
             <select value={selectedClub ?? ""} onChange={e => { setSelectedClub(Number(e.target.value)); setSelected(null); }}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
               <option value="">בחר מועדון</option>
               {clubs.map(c => <option key={c.id} value={c.id}>{c.club_name}</option>)}
             </select>
@@ -68,17 +68,17 @@ export default function BuyTicketPage() {
 
           {packages.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-gray-700">בחר חבילה:</p>
+              <p className="text-sm font-medium text-ink">בחר חבילה:</p>
               {packages.map(p => (
-                <label key={p.id} className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${selected === p.id ? "border-green-600 bg-green-50" : "border-gray-200"}`}>
+                <label key={p.id} className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer ${selected === p.id ? "border-court bg-mint" : "border-line"}`}>
                   <div className="flex items-center gap-3">
                     <input type="radio" name="pkg" value={p.id} checked={selected === p.id} onChange={() => setSelected(p.id)} />
                     <div>
                       <p className="text-sm font-medium">{p.ticket_name}</p>
-                      <p className="text-xs text-gray-500">{p.num_of_punches} כניסות | בתוקף {p.valid_days} ימים</p>
+                      <p className="text-xs text-muted">{p.num_of_punches} כניסות | בתוקף {p.valid_days} ימים</p>
                     </div>
                   </div>
-                  <p className="text-green-700 font-bold">₪{p.price}</p>
+                  <p className="text-court font-bold">₪{p.price}</p>
                 </label>
               ))}
             </div>
@@ -87,7 +87,7 @@ export default function BuyTicketPage() {
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <button onClick={purchase} disabled={!selected || loading}
-            className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition disabled:opacity-50">
+            className="w-full bg-court text-white py-2 rounded-lg hover:bg-court-dark transition disabled:opacity-50">
             {loading ? "מעבד..." : "רכוש עכשיו"}
           </button>
         </div>

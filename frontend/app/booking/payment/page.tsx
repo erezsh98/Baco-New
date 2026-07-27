@@ -74,9 +74,9 @@ export default function PaymentPage() {
 
   if (iframeHtml) {
     return (
-      <main className="min-h-screen bg-green-50 p-4">
+      <main className="min-h-screen bg-mint p-4">
         <div className="max-w-xl mx-auto bg-white rounded-2xl shadow p-4">
-          <h2 className="text-xl font-bold text-green-800 mb-4 text-center">תשלום בכרטיס אשראי</h2>
+          <h2 className="text-xl font-bold text-court-dark mb-4 text-center">תשלום בכרטיס אשראי</h2>
           <div dangerouslySetInnerHTML={{ __html: iframeHtml }} />
         </div>
       </main>
@@ -84,15 +84,15 @@ export default function PaymentPage() {
   }
 
   return (
-    <main className="min-h-screen bg-green-50 p-4">
+    <main className="min-h-screen bg-mint p-4">
       <div className="max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold text-green-800 mb-6 text-center">אמצעי תשלום</h1>
+        <h1 className="text-2xl font-bold text-court-dark mb-6 text-center">אמצעי תשלום</h1>
 
         <div className="bg-white rounded-2xl shadow p-6 mb-4">
-          <h2 className="font-semibold text-gray-700 mb-2">פרטי ההזמנה</h2>
-          <p className="text-sm text-gray-600">{slot.club_name} — מגרש {slot.court_number}</p>
-          <p className="text-sm text-gray-600">{slot.date} | {slot.hour}:{String(slot.minutes_offset).padStart(2, "0")}</p>
-          <p className="text-sm font-bold text-green-700 mt-1">₪{slot.non_member_price}</p>
+          <h2 className="font-semibold text-ink mb-2">פרטי ההזמנה</h2>
+          <p className="text-sm text-muted">{slot.club_name} — מגרש {slot.court_number}</p>
+          <p className="text-sm text-muted">{slot.date} | {slot.hour}:{String(slot.minutes_offset).padStart(2, "0")}</p>
+          <p className="text-sm font-bold text-court mt-1">₪{slot.non_member_price}</p>
         </div>
 
         {error && <p className="text-red-600 text-sm mb-4 text-center">{error}</p>}
@@ -100,26 +100,26 @@ export default function PaymentPage() {
         {orderLimit ? (
           <div className="bg-white rounded-2xl shadow p-6 text-center">
             <p className="text-red-600 font-semibold">הגעת למכסת ההזמנות היומית בכרטיסייה שלך.</p>
-            <button onClick={() => router.back()} className="mt-4 text-gray-500 text-sm hover:underline">חזור לחיפוש</button>
+            <button onClick={() => router.back()} className="mt-4 text-muted text-sm hover:underline">חזור לחיפוש</button>
           </div>
         ) : (
         <div className="bg-white rounded-2xl shadow p-6 space-y-4">
           <div className="flex gap-4">
             <button onClick={() => setPayMethod("credit")}
-              className={`flex-1 py-2 rounded-lg border-2 transition ${payMethod === "credit" ? "border-green-700 bg-green-50 font-bold" : "border-gray-200"}`}>
+              className={`flex-1 py-2 rounded-lg border-2 transition ${payMethod === "credit" ? "border-court bg-mint font-bold" : "border-line"}`}>
               כרטיס אשראי
             </button>
             <button onClick={() => setPayMethod("ticket")} disabled={tickets.length === 0}
-              className={`flex-1 py-2 rounded-lg border-2 transition ${payMethod === "ticket" ? "border-green-700 bg-green-50 font-bold" : "border-gray-200"} disabled:opacity-40`}>
+              className={`flex-1 py-2 rounded-lg border-2 transition ${payMethod === "ticket" ? "border-court bg-mint font-bold" : "border-line"} disabled:opacity-40`}>
               כרטיסייה
             </button>
           </div>
 
           {payMethod === "ticket" && tickets.length > 0 && (
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">בחר כרטיסייה:</p>
+              <p className="text-sm text-muted">בחר כרטיסייה:</p>
               {tickets.map(t => (
-                <label key={t.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${selectedTicket === t.id ? "border-green-600 bg-green-50" : "border-gray-200"}`}>
+                <label key={t.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${selectedTicket === t.id ? "border-court bg-mint" : "border-line"}`}>
                   <input type="radio" name="ticket" value={t.id}
                     checked={selectedTicket === t.id} onChange={() => setSelectedTicket(t.id)} />
                   <span className="text-sm">{t.ticket_name} — {t.unlimited ? "ללא הגבלה" : `${t.punches_left} כניסות נותרו`}</span>
@@ -131,10 +131,10 @@ export default function PaymentPage() {
           <button
             onClick={payMethod === "credit" ? proceedCredit : proceedTicket}
             disabled={loading || (payMethod === "ticket" && !selectedTicket)}
-            className="w-full bg-green-700 text-white py-3 rounded-lg hover:bg-green-800 transition disabled:opacity-50 font-semibold">
+            className="w-full bg-court text-white py-3 rounded-lg hover:bg-court-dark transition disabled:opacity-50 font-semibold">
             {loading ? "מעבד..." : "אישור הזמנה"}
           </button>
-          <button onClick={() => router.back()} className="w-full text-gray-500 text-sm hover:underline">חזור לחיפוש</button>
+          <button onClick={() => router.back()} className="w-full text-muted text-sm hover:underline">חזור לחיפוש</button>
         </div>
         )}
       </div>

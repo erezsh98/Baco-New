@@ -189,34 +189,34 @@ export default function SchedulePage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
+    <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">עריכת לוח זמנים — {clubName}</h1>
-          <Link href="/admin" className="text-sm text-blue-600 hover:underline">חזרה לניהול</Link>
+          <h1 className="text-2xl font-bold text-ink">עריכת לוח זמנים — {clubName}</h1>
+          <Link href="/admin" className="text-sm text-court hover:underline">חזרה לניהול</Link>
         </div>
 
         {/* Controls */}
         <div className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap gap-4 items-end">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">מגרש</label>
+            <label className="block text-sm font-medium text-ink mb-1">מגרש</label>
             <select value={court ?? ""} onChange={e => setCourt(Number(e.target.value))}
-              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
               {courts.map(c => <option key={c} value={c}>מגרש {c}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">מתאריך</label>
+            <label className="block text-sm font-medium text-ink mb-1">מתאריך</label>
             <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">עד תאריך</label>
+            <label className="block text-sm font-medium text-ink mb-1">עד תאריך</label>
             <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <div>
-            <span className="block text-sm font-medium text-gray-700 mb-1">מחיר</span>
+            <span className="block text-sm font-medium text-ink mb-1">מחיר</span>
             <div className="flex gap-3 text-sm py-2">
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" checked={priceMode === "same"} onChange={() => changeMode("same")} /> אחיד
@@ -232,22 +232,22 @@ export default function SchedulePage() {
         <div className="bg-white rounded-xl shadow p-4 mb-4">
           <p className="text-sm mb-3">
             כלי פעיל:{" "}
-            <span className="font-bold text-gray-900">
+            <span className="font-bold text-ink">
               {brush.kind === "tier"
                 ? "צביעת מחיר (צבע)"
                 : brush.kind === "offset"
                   ? `סימון היסט ${brush.value === 0 ? "00" : ":" + brush.value}`
                   : "חסימה / מחיקה"}
             </span>
-            <span className="text-gray-400"> — לחץ או גרור על התאים</span>
+            <span className="text-muted"> — לחץ או גרור על התאים</span>
           </p>
 
           {/* Color / cost tools */}
-          <div className={`flex flex-wrap gap-3 items-center rounded-lg p-2 ${brush.kind === "tier" ? "bg-gray-50 ring-1 ring-gray-300" : ""}`}>
-            <span className="text-xs font-semibold text-gray-500">מחיר (צבע):</span>
+          <div className={`flex flex-wrap gap-3 items-center rounded-lg p-2 ${brush.kind === "tier" ? "bg-canvas ring-1 ring-line" : ""}`}>
+            <span className="text-xs font-semibold text-muted">מחיר (צבע):</span>
             {tiers.map(t => (
               <div key={t.id}
-                className={`flex items-center gap-2 border rounded-lg p-2 ${brush.kind === "tier" && brush.id === t.id ? "ring-2 ring-offset-1 ring-gray-800" : ""}`}>
+                className={`flex items-center gap-2 border rounded-lg p-2 ${brush.kind === "tier" && brush.id === t.id ? "ring-2 ring-offset-1 ring-ink" : ""}`}>
                 <button type="button" onClick={() => setBrush({ kind: "tier", id: t.id })}
                   className="w-6 h-6 rounded" style={{ background: t.color }} title="בחר צבע זה (מצב צביעת מחיר)" />
                 {priceMode === "same" ? (
@@ -267,29 +267,29 @@ export default function SchedulePage() {
               </div>
             ))}
             <button type="button" onClick={addTier}
-              className="border border-dashed rounded-lg px-3 py-2 text-sm text-blue-600 hover:bg-blue-50">+ הוסף מחיר</button>
+              className="border border-dashed rounded-lg px-3 py-2 text-sm text-court hover:bg-mint">+ הוסף מחיר</button>
             <button type="button" onClick={() => setBrush({ kind: "block" })}
-              className={`border rounded-lg px-3 py-2 text-sm ${brush.kind === "block" ? "ring-2 ring-offset-1 ring-gray-800 bg-gray-100" : ""}`}
+              className={`border rounded-lg px-3 py-2 text-sm ${brush.kind === "block" ? "ring-2 ring-offset-1 ring-ink bg-mint" : ""}`}
               title="סמן תאים לחסימה">
               <span className="inline-block w-4 h-4 rounded align-middle mr-1" style={{ background: "#f3f4f6", border: "1px solid #d1d5db" }} /> חסום / מחק
             </button>
           </div>
 
           {/* Offset tool — separate mode: paints only the start-minutes, keeps color */}
-          <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm rounded-lg p-2 ${brush.kind === "offset" ? "bg-gray-50 ring-1 ring-gray-300" : ""}`}>
-            <span className="font-medium text-gray-700">היסט התחלה (דקות אחרי השעה):</span>
+          <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm rounded-lg p-2 ${brush.kind === "offset" ? "bg-canvas ring-1 ring-line" : ""}`}>
+            <span className="font-medium text-ink">היסט התחלה (דקות אחרי השעה):</span>
             {OFFSETS.map(o => (
               <label key={o} className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" name="offset" checked={brush.kind === "offset" && brush.value === o} onChange={() => setBrush({ kind: "offset", value: o })} />
                 {o === 0 ? "00 (ללא סימון)" : `:${o}`}
               </label>
             ))}
-            <span className="text-xs text-gray-400">בחירת היסט משנה רק את דקות ההתחלה של התאים שתסמן — הצבע/המחיר נשמר</span>
+            <span className="text-xs text-muted">בחירת היסט משנה רק את דקות ההתחלה של התאים שתסמן — הצבע/המחיר נשמר</span>
           </div>
         </div>
 
-        {msg && <p className={`text-sm mb-3 ${msgOk ? "text-green-700" : "text-red-600"}`}>{msg}</p>}
-        {loading && <p className="text-center text-gray-500">טוען...</p>}
+        {msg && <p className={`text-sm mb-3 ${msgOk ? "text-court" : "text-red-600"}`}>{msg}</p>}
+        {loading && <p className="text-center text-muted">טוען...</p>}
 
         {/* Matrix */}
         {!loading && (
@@ -297,16 +297,16 @@ export default function SchedulePage() {
             <table className="border-collapse select-none mx-auto" onDragStart={e => e.preventDefault()}>
               <thead>
                 <tr>
-                  <th className="p-2 text-xs text-gray-500 sticky right-0 bg-white">שעה</th>
+                  <th className="p-2 text-xs text-muted sticky right-0 bg-white">שעה</th>
                   {DAYS.map(d => (
-                    <th key={d} className="p-2 text-xs font-medium text-gray-700" style={{ minWidth: 64 }}>{DAY_LABELS[d]}</th>
+                    <th key={d} className="p-2 text-xs font-medium text-ink" style={{ minWidth: 64 }}>{DAY_LABELS[d]}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {hours.map(h => (
                   <tr key={h}>
-                    <td className="p-1 text-xs text-gray-500 text-center sticky right-0 bg-white">
+                    <td className="p-1 text-xs text-muted text-center sticky right-0 bg-white">
                       {String(h).padStart(2, "0")}:00
                     </td>
                     {DAYS.map(d => (
@@ -331,7 +331,7 @@ export default function SchedulePage() {
 
         <div className="mt-4 flex justify-end">
           <button onClick={save} disabled={saving || loading}
-            className="bg-green-700 text-white px-8 py-3 rounded-lg hover:bg-green-800 transition disabled:opacity-50 font-semibold">
+            className="bg-court text-white px-8 py-3 rounded-lg hover:bg-court-dark transition disabled:opacity-50 font-semibold">
             {saving ? "שומר ובונה זמינות..." : "שמור"}
           </button>
         </div>

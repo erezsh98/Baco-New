@@ -33,22 +33,22 @@ export default function ContactPage() {
   }
 
   return (
-    <main className="min-h-screen bg-green-50 p-4">
+    <main className="min-h-screen bg-mint p-4">
       <div className="max-w-2xl mx-auto space-y-8">
-        <h1 className="text-2xl font-bold text-green-800 text-center">צור קשר ושאלות נפוצות</h1>
+        <h1 className="text-2xl font-bold text-court-dark text-center">צור קשר ושאלות נפוצות</h1>
 
         <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">שאלות נפוצות</h2>
+          <h2 className="text-lg font-semibold text-ink mb-4">שאלות נפוצות</h2>
           <div className="space-y-2">
             {FAQ.map((item, i) => (
-              <div key={i} className="border border-gray-200 rounded-lg overflow-hidden">
+              <div key={i} className="border border-line rounded-lg overflow-hidden">
                 <button onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full text-right px-4 py-3 text-sm font-medium text-gray-700 hover:bg-green-50 flex justify-between items-center">
+                  className="w-full text-right px-4 py-3 text-sm font-medium text-ink hover:bg-mint flex justify-between items-center">
                   <span>{item.q}</span>
-                  <span className="text-green-600">{openFaq === i ? "▲" : "▼"}</span>
+                  <span className="text-court">{openFaq === i ? "▲" : "▼"}</span>
                 </button>
                 {openFaq === i && (
-                  <div className="px-4 pb-3 text-sm text-gray-600 bg-green-50">{item.a}</div>
+                  <div className="px-4 pb-3 text-sm text-muted bg-mint">{item.a}</div>
                 )}
               </div>
             ))}
@@ -56,29 +56,29 @@ export default function ContactPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">שלח הודעה</h2>
+          <h2 className="text-lg font-semibold text-ink mb-4">שלח הודעה</h2>
           {sent ? (
-            <p className="text-green-700 text-center py-4">ההודעה נשלחה! נחזור אליך בהקדם.</p>
+            <p className="text-court text-center py-4">ההודעה נשלחה! נחזור אליך בהקדם.</p>
           ) : (
             <form onSubmit={submit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">שם מלא</label>
+                <label className="block text-sm font-medium text-ink mb-1">שם מלא</label>
                 <input name="name" required value={form.name} onChange={handle}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">אימייל</label>
+                <label className="block text-sm font-medium text-ink mb-1">אימייל</label>
                 <input name="email" type="email" required value={form.email} onChange={handle}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">הודעה</label>
+                <label className="block text-sm font-medium text-ink mb-1">הודעה</label>
                 <textarea name="message" required rows={4} value={form.message} onChange={handle}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
               </div>
               {error && <p className="text-red-600 text-sm">{error}</p>}
               <button type="submit" disabled={loading}
-                className="w-full bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 disabled:opacity-50">
+                className="w-full bg-court text-white py-2 rounded-lg hover:bg-court-dark disabled:opacity-50">
                 {loading ? "שולח..." : "שלח"}
               </button>
             </form>

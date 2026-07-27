@@ -16,19 +16,19 @@ export default function ThankYouPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-green-50 flex items-center justify-center p-4">
+    <main className="min-h-screen bg-mint flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
         <div className="text-6xl mb-4">🎾</div>
-        <h1 className="text-2xl font-bold text-green-800 mb-2">ההזמנה אושרה!</h1>
-        {slotInfo && <p className="text-gray-600 mb-4 text-sm">{slotInfo}</p>}
-        <p className="text-gray-500 text-sm mb-6">פרטי ההזמנה נשלחו לאימייל שלך.</p>
+        <h1 className="text-2xl font-bold text-court-dark mb-2">ההזמנה אושרה!</h1>
+        {slotInfo && <p className="text-muted mb-4 text-sm">{slotInfo}</p>}
+        <p className="text-muted text-sm mb-6">פרטי ההזמנה נשלחו לאימייל שלך.</p>
         <div className="flex flex-col gap-3">
           <Link href="/my-bookings"
-            className="bg-green-700 text-white py-2 rounded-lg hover:bg-green-800 transition">
+            className="bg-court text-white py-2 rounded-lg hover:bg-court-dark transition">
             ההזמנות שלי
           </Link>
           <Link href="/search"
-            className="border border-green-700 text-green-700 py-2 rounded-lg hover:bg-green-50 transition">
+            className="border border-court text-court py-2 rounded-lg hover:bg-mint transition">
             חפש מגרש נוסף
           </Link>
         </div>
