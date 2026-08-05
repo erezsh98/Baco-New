@@ -174,6 +174,7 @@ class CreateBookingRequest2(BaseModel):
 def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from app.config import settings
     from app.routers.tickets import eligible_tickets_for_slot
+    from app.services.pricing import effective_price
 
     slot = db.query(AvailableCourtSlot).filter(AvailableCourtSlot.id == req.slot_id).first()
     if not slot:
@@ -182,7 +183,7 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
         raise HTTPException(status_code=409, detail="Court slot is no longer available")
 
     template = slot.rental_template
-    amount = template.non_member_price
+    amount, _is_member = effective_price(db, current_user, slot)
 
     ticket = None
     if req.payment_method == "ticket":
@@ -236,10 +237,11 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
 
     if req.payment_method == "credit":
         club = template.club
-        if settings.dev_mode or not club or not club.u_name:
+        # amount == 0 → free (club member with member_price 0): confirm with no payment
+        if amount == 0 or settings.dev_mode or not club or not club.u_name:
             order.is_final = "Y"
             db.commit()
-            send_booking_confirmation_cc(order)          # paid by credit card
+            send_booking_confirmation_cc(order)          # paid by credit card (or free)
             return {"order_id": order.id, "confirmed": True, "message": "Booking confirmed"}
         from app.services.payment import build_pelecard_iframe
         iframe = build_pelecard_iframe(order.order_id, float(amount), club.u_name.strip(), 2)

@@ -39,6 +39,7 @@ RECURRING = "recurring"
 
 class SpanIn(BaseModel):
     block_type: str = PERIOD          # "period" | "recurring"
+    court_number: int | None = None   # None = all courts in the club
     start_date: date
     start_hour: int
     end_date: date
@@ -52,6 +53,7 @@ class SpanReplace(SpanIn):
 class SpanOut(BaseModel):
     ids: list[int]          # the holiday_dates row ids this block is stored as
     block_type: str
+    court_number: int | None = None
     start_date: date
     start_hour: int
     end_date: date
@@ -59,16 +61,18 @@ class SpanOut(BaseModel):
 
 
 def _validate(s: SpanIn) -> None:
-    if not (0 <= s.start_hour <= 23) or not (0 <= s.end_hour <= 23):
-        raise HTTPException(status_code=400, detail="שעה חייבת להיות בין 0 ל-23")
+    # end_hour is the EXCLUSIVE "to" clock hour: 22 = "up to 22:00" (last session 21:00-22:00).
+    # It may be 24 (= up to midnight). start_hour is an inclusive session start (0-23).
+    if not (0 <= s.start_hour <= 23) or not (1 <= s.end_hour <= 24):
+        raise HTTPException(status_code=400, detail="שעה חייבת להיות בטווח תקין")
     if s.block_type == RECURRING:
         if s.start_date > s.end_date:
             raise HTTPException(status_code=400, detail="תאריך התחלה מאוחר מתאריך הסיום")
-        if s.start_hour > s.end_hour:
-            raise HTTPException(status_code=400, detail="שעת התחלה מאוחרת משעת הסיום")
-    else:  # period — a continuous datetime range
-        if (s.start_date, s.start_hour) > (s.end_date, s.end_hour):
-            raise HTTPException(status_code=400, detail="מועד ההתחלה מאוחר ממועד הסיום")
+        if s.start_hour >= s.end_hour:
+            raise HTTPException(status_code=400, detail="שעת הסיום חייבת להיות אחרי שעת ההתחלה")
+    else:  # period — a continuous datetime range; end must be strictly after start
+        if (s.start_date, s.start_hour) >= (s.end_date, s.end_hour):
+            raise HTTPException(status_code=400, detail="מועד הסיום חייב להיות אחרי מועד ההתחלה")
 
 
 def _decompose(sd: date, sh: int, ed: date, eh: int) -> list[tuple[date, date, int, int]]:
@@ -94,42 +98,51 @@ def _abs_hour(d: date, h: int) -> int:
 
 def _recompose(rows: list[HolidayDate]) -> list[dict]:
     """Return one logical block per group. Recurring rows stand alone; the rest
-    (period fragments) are merged by contiguity into continuous spans."""
-    recurring = [r for r in rows if _is_recurring_row(r)]
-    period_rows = [r for r in rows if not _is_recurring_row(r)]
+    (period fragments) are merged by contiguity into continuous spans. Blocks are
+    grouped per court (court_number None = all courts) so fragments of different
+    courts are never merged together."""
+    by_court: dict = {}
+    for r in rows:
+        by_court.setdefault(r.court_number, []).append(r)
 
-    items = sorted(
-        ({"abs_start": _abs_hour(r.start_date, r.start_hour),
-          "abs_end": _abs_hour(r.end_date, r.end_hour), "row": r} for r in period_rows),
-        key=lambda x: (x["abs_start"], x["abs_end"]),
-    )
-    spans: list[dict] = []
-    for it in items:
-        r = it["row"]
-        if spans and it["abs_start"] <= spans[-1]["_abs_end"] + 1:
-            g = spans[-1]
-            g["ids"].append(r.id)
-            if it["abs_end"] > g["_abs_end"]:
-                g["_abs_end"] = it["abs_end"]
-                g["end_date"] = r.end_date
-                g["end_hour"] = r.end_hour
-        else:
+    result: list[dict] = []
+    for court_number, crows in by_court.items():
+        recurring = [r for r in crows if _is_recurring_row(r)]
+        period_rows = [r for r in crows if not _is_recurring_row(r)]
+
+        items = sorted(
+            ({"abs_start": _abs_hour(r.start_date, r.start_hour),
+              "abs_end": _abs_hour(r.end_date, r.end_hour), "row": r} for r in period_rows),
+            key=lambda x: (x["abs_start"], x["abs_end"]),
+        )
+        spans: list[dict] = []
+        for it in items:
+            r = it["row"]
+            if spans and it["abs_start"] <= spans[-1]["_abs_end"] + 1:
+                g = spans[-1]
+                g["ids"].append(r.id)
+                if it["abs_end"] > g["_abs_end"]:
+                    g["_abs_end"] = it["abs_end"]
+                    g["end_date"] = r.end_date
+                    g["end_hour"] = r.end_hour
+            else:
+                spans.append({
+                    "ids": [r.id], "block_type": PERIOD, "court_number": court_number,
+                    "start_date": r.start_date, "start_hour": r.start_hour,
+                    "end_date": r.end_date, "end_hour": r.end_hour,
+                    "_abs_end": it["abs_end"],
+                })
+        for s in spans:
+            s.pop("_abs_end")
+
+        for r in recurring:
             spans.append({
-                "ids": [r.id], "block_type": PERIOD,
+                "ids": [r.id], "block_type": RECURRING, "court_number": court_number,
                 "start_date": r.start_date, "start_hour": r.start_hour,
                 "end_date": r.end_date, "end_hour": r.end_hour,
-                "_abs_end": it["abs_end"],
             })
-    for s in spans:
-        s.pop("_abs_end")
-
-    for r in recurring:
-        spans.append({
-            "ids": [r.id], "block_type": RECURRING,
-            "start_date": r.start_date, "start_hour": r.start_hour,
-            "end_date": r.end_date, "end_hour": r.end_hour,
-        })
-    return spans
+        result.extend(spans)
+    return result
 
 
 def _delete_rows(db: Session, ids: list[int], club_id: int) -> None:
@@ -142,17 +155,21 @@ def _delete_rows(db: Session, ids: list[int], club_id: int) -> None:
 def _create_block(db: Session, club_id: int, s: SpanIn) -> None:
     if s.block_type == RECURRING:
         # one grid row: the same hours every day in the range (legacy meaning)
-        db.add(HolidayDate(club_id=club_id, start_date=s.start_date, end_date=s.end_date,
+        db.add(HolidayDate(club_id=club_id, court_number=s.court_number,
+                           start_date=s.start_date, end_date=s.end_date,
                            start_hour=s.start_hour, end_hour=s.end_hour))
     else:
         for sd, ed, sh, eh in _decompose(s.start_date, s.start_hour, s.end_date, s.end_hour):
-            db.add(HolidayDate(club_id=club_id, start_date=sd, end_date=ed, start_hour=sh, end_hour=eh))
+            db.add(HolidayDate(club_id=club_id, court_number=s.court_number,
+                               start_date=sd, end_date=ed, start_hour=sh, end_hour=eh))
 
 
 @router.get("", response_model=list[SpanOut])
 def list_holidays(db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     rows = db.query(HolidayDate).filter(HolidayDate.club_id == manager.club_id).all()
     blocks = _recompose(rows)
+    for b in blocks:
+        b["end_hour"] += 1  # stored value is the last blocked slot; show the exclusive to-hour
     blocks.sort(key=lambda s: (s["start_date"], s["start_hour"]), reverse=True)  # newest first
     return blocks
 
@@ -160,6 +177,7 @@ def list_holidays(db: Session = Depends(get_db), manager: ClubManager = Depends(
 @router.post("", status_code=201)
 def create_holiday(body: SpanIn, db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     _validate(body)
+    body.end_hour -= 1  # store the last blocked slot hour (the to-hour is exclusive)
     _create_block(db, manager.club_id, body)
     db.commit()
     rebuild(db)
@@ -170,6 +188,7 @@ def create_holiday(body: SpanIn, db: Session = Depends(get_db), manager: ClubMan
 def replace_holiday(body: SpanReplace, db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     """Edit a block: drop its old rows and recreate from the new definition."""
     _validate(body)
+    body.end_hour -= 1  # store the last blocked slot hour (the to-hour is exclusive)
     _delete_rows(db, body.ids, manager.club_id)
     _create_block(db, manager.club_id, body)
     db.commit()

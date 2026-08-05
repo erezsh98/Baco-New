@@ -5,11 +5,12 @@ from pydantic import BaseModel
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.database import get_db
 from app.models.court import AvailableCourtSlot, RentalTemplate
 from app.models.club import Club
 from app.models.user import User
+from app.services.pricing import effective_price
 
 router = APIRouter(prefix="/courts", tags=["courts"])
 
@@ -25,9 +26,32 @@ class CourtSlotOut(BaseModel):
     minutes_offset: int
     member_price: int | None
     non_member_price: int | None
+    price: int          # effective price for the requesting user (member_price for members)
+    is_member_price: bool
+    is_free: bool       # member_price == 0 → no payment needed
 
     class Config:
         from_attributes = True
+
+
+def _slot_out(db: Session, slot: AvailableCourtSlot, user: User | None) -> "CourtSlotOut":
+    tmpl = slot.rental_template
+    price, is_member = effective_price(db, user, slot)
+    return CourtSlotOut(
+        id=slot.id,
+        club_name=tmpl.club.club_name,
+        club_id=tmpl.club.id,
+        court_number=tmpl.court_number,
+        surface_type=tmpl.surface_type,
+        date=slot.curdate,
+        hour=slot.hour,
+        minutes_offset=tmpl.minutes_offset,
+        member_price=tmpl.member_price,
+        non_member_price=tmpl.non_member_price,
+        price=price,
+        is_member_price=is_member,
+        is_free=(price == 0),
+    )
 
 
 @router.get("/search", response_model=list[CourtSlotOut])
@@ -39,6 +63,7 @@ def search_courts(
     area_id: int = Query(None),
     club_id: int = Query(None),
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ):
     query = (
         db.query(AvailableCourtSlot)
@@ -82,21 +107,7 @@ def search_courts(
 
     slots = query.order_by(AvailableCourtSlot.curdate, AvailableCourtSlot.hour).all()
 
-    return [
-        CourtSlotOut(
-            id=s.id,
-            club_name=s.rental_template.club.club_name,
-            club_id=s.rental_template.club.id,
-            court_number=s.rental_template.court_number,
-            surface_type=s.rental_template.surface_type,
-            date=s.curdate,
-            hour=s.hour,
-            minutes_offset=s.rental_template.minutes_offset,
-            member_price=s.rental_template.member_price,
-            non_member_price=s.rental_template.non_member_price,
-        )
-        for s in slots
-    ]
+    return [_slot_out(db, s, current_user) for s in slots]
 
 
 @router.get("/{slot_id}", response_model=CourtSlotOut)
@@ -105,15 +116,4 @@ def get_slot(slot_id: int, db: Session = Depends(get_db), current_user: User = D
     slot = db.query(AvailableCourtSlot).filter(AvailableCourtSlot.id == slot_id).first()
     if not slot:
         raise HTTPException(status_code=404, detail="Slot not found")
-    return CourtSlotOut(
-        id=slot.id,
-        club_name=slot.rental_template.club.club_name,
-        club_id=slot.rental_template.club.id,
-        court_number=slot.rental_template.court_number,
-        surface_type=slot.rental_template.surface_type,
-        date=slot.curdate,
-        hour=slot.hour,
-        minutes_offset=slot.rental_template.minutes_offset,
-        member_price=slot.rental_template.member_price,
-        non_member_price=slot.rental_template.non_member_price,
-    )
+    return _slot_out(db, slot, current_user)

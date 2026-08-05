@@ -58,6 +58,7 @@ class HolidayDate(Base):
 
     id = Column(Integer, primary_key=True)
     club_id = Column(Integer, ForeignKey("club.id"))
+    court_number = Column(Integer, nullable=True)  # NULL = all courts in the club
     start_date = Column(Date)
     end_date = Column(Date)
     start_hour = Column(Integer)

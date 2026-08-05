@@ -11,6 +11,7 @@ type Slot = {
   court_number: number; surface_type: string;
   date: string; hour: number; minutes_offset: number;
   member_price: number; non_member_price: number;
+  price: number; is_member_price: boolean; is_free: boolean;
 };
 
 export default function SearchPage() {
@@ -171,7 +172,13 @@ export default function SearchPage() {
                     <td className="px-4 py-3">{s.date}</td>
                     <td className="px-4 py-3">{s.hour}:{String(s.minutes_offset).padStart(2, "0")}</td>
                     <td className="px-4 py-3">מגרש {s.court_number}</td>
-                    <td className="px-4 py-3">₪{s.non_member_price}</td>
+                    <td className="px-4 py-3">
+                      {s.is_free ? (
+                        <span className="font-bold text-court">חינם</span>
+                      ) : (
+                        <>₪{s.price}{s.is_member_price && <span className="mr-1 text-xs text-court">מחיר חבר</span>}</>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <button onClick={() => book(s)}
                         className="bg-court text-white px-4 py-1 rounded-lg hover:bg-court-dark text-xs">

@@ -24,6 +24,7 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 # Matches the old Grails "default date" sentinel (1980-01-01).
 UNPAID_DATE = date(1980, 1, 1)
 SUBSCRIPTION_TYPE = "מנוי"
+from app.services.pricing import MEMBER_TYPE  # "חבר מועדון" — club-member pricing privilege
 UNLIMITED_PUNCHES = -1000  # ClubTicket.total_num_of_punches sentinel for unlimited
 NO_DAILY_LIMIT = -1        # ClubTicket.max_orders_per_day sentinel for no limit
 
@@ -250,6 +251,7 @@ def list_packages(club_id: int, db: Session = Depends(get_db), current_user: Use
                 ClubCustomerPermittedTicket.end_date > today,
             ),
             ClubCustomerPermittedTicket.ticket_type != SUBSCRIPTION_TYPE,
+            ClubCustomerPermittedTicket.ticket_type != MEMBER_TYPE,  # pricing privilege, not a purchasable ticket
         )
         .distinct()
         .all()

@@ -68,6 +68,8 @@ def rebuild(db: Session | None = None) -> None:
         holidays = db.query(HolidayDate).all()
         for h in holidays:
             club_tmpl_ids = db.query(RentalTemplate.id).filter(RentalTemplate.club_id == h.club_id)
+            if h.court_number is not None:                       # block only this court
+                club_tmpl_ids = club_tmpl_ids.filter(RentalTemplate.court_number == h.court_number)
             db.query(AvailableCourtSlot).filter(
                 AvailableCourtSlot.rental_template_id.in_(club_tmpl_ids),
                 AvailableCourtSlot.curdate >= h.start_date,

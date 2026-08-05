@@ -7,6 +7,7 @@ type Slot = {
   id: number; club_name: string; club_id: number;
   court_number: number; date: string; hour: number; minutes_offset: number;
   member_price: number; non_member_price: number;
+  price?: number; is_member_price?: boolean; is_free?: boolean;
 };
 
 type Ticket = { id: number; club_ticket_id: number; ticket_name: string; unlimited: boolean; punches_left: number | null };
@@ -29,6 +30,11 @@ export default function PaymentPage() {
     setSlot(s);
     const token = localStorage.getItem("access_token");
     if (token) {
+      // Re-price the slot for the now-authenticated user — member pricing (חבר מועדון)
+      // may apply, which the unauthenticated search couldn't know.
+      api.get(`/courts/${s.id}`)
+        .then(r => setSlot(cur => (cur ? { ...cur, ...r.data } : r.data)))
+        .catch(() => {});
       // Slot-aware: only כרטיסיות valid for this slot's day/hour (ticket_active_time)
       api.get(`/tickets/for-slot?slot_id=${s.id}`)
         .then(r => { setTickets(r.data.tickets); setOrderLimit(r.data.order_limit); })
@@ -115,7 +121,10 @@ export default function PaymentPage() {
           <h2 className="font-semibold text-ink mb-2">פרטי ההזמנה</h2>
           <p className="text-sm text-muted">{slot.club_name} — מגרש {slot.court_number}</p>
           <p className="text-sm text-muted">{slot.date} | {slot.hour}:{String(slot.minutes_offset).padStart(2, "0")}</p>
-          <p className="text-sm font-bold text-court mt-1">₪{slot.non_member_price}</p>
+          <p className="text-sm font-bold text-court mt-1">
+            {slot.is_free ? "ללא עלות" : `₪${slot.price ?? slot.non_member_price}`}
+            {slot.is_member_price && !slot.is_free && <span className="mr-2 text-xs text-court">(מחיר חבר מועדון)</span>}
+          </p>
         </div>
 
         {error && <p className="text-red-600 text-sm mb-4 text-center">{error}</p>}
@@ -124,6 +133,15 @@ export default function PaymentPage() {
           <div className="bg-white rounded-2xl shadow p-6 text-center">
             <p className="text-red-600 font-semibold">הגעת למכסת ההזמנות היומית בכרטיסייה שלך.</p>
             <button onClick={() => router.back()} className="mt-4 text-muted text-sm hover:underline">חזור לחיפוש</button>
+          </div>
+        ) : slot.is_free ? (
+          <div className="bg-white rounded-2xl shadow p-6 space-y-4 text-center">
+            <p className="text-court font-semibold">הזמנה זו ללא עלות (חבר מועדון) 🎾</p>
+            <button onClick={proceedCredit} disabled={loading}
+              className="w-full bg-court text-white py-3 rounded-lg hover:bg-court-dark transition disabled:opacity-50 font-semibold">
+              {loading ? "מעבד..." : "אישור הזמנה"}
+            </button>
+            <button onClick={() => router.back()} className="w-full text-muted text-sm hover:underline">חזור לחיפוש</button>
           </div>
         ) : (
         <div className="bg-white rounded-2xl shadow p-6 space-y-4">

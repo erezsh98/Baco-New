@@ -8,13 +8,15 @@ type BlockType = "period" | "recurring";
 type Block = {
   ids: number[];
   block_type: BlockType;
+  court_number: number | null;   // null = all courts
   start_date: string;
   start_hour: number;
   end_date: string;
   end_hour: number;
 };
 
-const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const HOURS = Array.from({ length: 24 }, (_, h) => h);        // 0..23 — session start ("from")
+const TO_HOURS = Array.from({ length: 24 }, (_, i) => i + 1); // 1..24 — exclusive end ("to", up to HH:00)
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 function today() {
@@ -33,16 +35,19 @@ function describe(b: Block): string {
 type FormState = {
   ids: number[] | null;
   block_type: BlockType;
+  court_number: number | null;
   start_date: string;
   start_hour: number;
   end_date: string;
   end_hour: number;
 };
-const EMPTY: FormState = { ids: null, block_type: "period", start_date: today(), start_hour: 8, end_date: today(), end_hour: 22 };
+const EMPTY: FormState = { ids: null, block_type: "period", court_number: null, start_date: today(), start_hour: 8, end_date: today(), end_hour: 22 };
+const courtLabel = (c: number | null) => (c == null ? "כל המגרשים" : `מגרש ${c}`);
 
 export default function HolidaysPage() {
   const router = useRouter();
   const [clubName, setClubName] = useState("");
+  const [courts, setCourts] = useState<number[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [form, setForm] = useState<FormState>({ ...EMPTY });
   const [loading, setLoading] = useState(true);
@@ -54,11 +59,12 @@ export default function HolidaysPage() {
 
   async function init() {
     try {
-      const [courts, hol] = await Promise.all([
+      const [sched, hol] = await Promise.all([
         api.get("/admin/schedule/courts"),
         api.get("/admin/holidays"),
       ]);
-      setClubName(courts.data.club_name || "");
+      setClubName(sched.data.club_name || "");
+      setCourts(sched.data.courts || []);
       setBlocks(hol.data);
     } catch (e: any) {
       if (e.response?.status === 403) { router.push("/search"); return; }
@@ -74,7 +80,7 @@ export default function HolidaysPage() {
   }
 
   function edit(b: Block) {
-    setForm({ ids: b.ids, block_type: b.block_type, start_date: b.start_date, start_hour: b.start_hour, end_date: b.end_date, end_hour: b.end_hour });
+    setForm({ ids: b.ids, block_type: b.block_type, court_number: b.court_number, start_date: b.start_date, start_hour: b.start_hour, end_date: b.end_date, end_hour: b.end_hour });
     setMsg("");
   }
 
@@ -86,6 +92,7 @@ export default function HolidaysPage() {
     setSaving(true); setMsg("");
     const payload = {
       block_type: form.block_type,
+      court_number: form.court_number,
       start_date: form.start_date, start_hour: form.start_hour,
       end_date: form.end_date, end_hour: form.end_hour,
     };
@@ -149,6 +156,18 @@ export default function HolidaysPage() {
               : "חוסם ברצף ממועד ההתחלה (תאריך ושעה) ועד מועד הסיום (תאריך ושעה)."}
           </p>
 
+          {/* Which court */}
+          <div className="mb-4">
+            <span className="block text-sm font-medium text-ink mb-1">מגרש</span>
+            <select
+              value={form.court_number ?? ""}
+              onChange={e => setForm(f => ({ ...f, court_number: e.target.value === "" ? null : Number(e.target.value) }))}
+              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
+              <option value="">כל המגרשים</option>
+              {courts.map(c => <option key={c} value={c}>מגרש {c}</option>)}
+            </select>
+          </div>
+
           {recurring ? (
             <div className="flex flex-wrap gap-6 items-end">
               <div>
@@ -171,7 +190,7 @@ export default function HolidaysPage() {
                   <span className="text-muted">עד</span>
                   <select value={form.end_hour} onChange={e => setForm(f => ({ ...f, end_hour: Number(e.target.value) }))}
                     className="border rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-                    {HOURS.map(h => <option key={h} value={h}>{hh(h)}</option>)}
+                    {TO_HOURS.map(h => <option key={h} value={h}>{hh(h)}</option>)}
                   </select>
                 </div>
               </div>
@@ -201,7 +220,7 @@ export default function HolidaysPage() {
                     className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
                   <select value={form.end_hour} onChange={e => setForm(f => ({ ...f, end_hour: Number(e.target.value) }))}
                     className="border rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-                    {HOURS.map(h => <option key={h} value={h}>{hh(h)}</option>)}
+                    {TO_HOURS.map(h => <option key={h} value={h}>{hh(h)}</option>)}
                   </select>
                 </div>
               </div>
@@ -227,6 +246,7 @@ export default function HolidaysPage() {
                 <thead className="bg-ink text-white">
                   <tr>
                     <th className="px-4 py-3 text-right">סוג</th>
+                    <th className="px-4 py-3 text-right">מגרש</th>
                     <th className="px-4 py-3 text-right">חסימה</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -239,6 +259,7 @@ export default function HolidaysPage() {
                           {b.block_type === "recurring" ? "קבועה" : "תקופה"}
                         </span>
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap">{courtLabel(b.court_number)}</td>
                       <td className="px-4 py-3">{describe(b)}</td>
                       <td className="px-4 py-3 flex gap-2 justify-end">
                         {isPast(b) ? (

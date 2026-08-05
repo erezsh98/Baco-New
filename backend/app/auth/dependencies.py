@@ -9,6 +9,23 @@ from app.models.club import ClubManager
 from app.models.user import User, UserRole, Role
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+
+
+def get_current_user_optional(token: str | None = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)) -> User | None:
+    """Like get_current_user but never raises — returns None for anonymous requests.
+    Used by endpoints that work logged-out but personalize when a token is present."""
+    if not token:
+        return None
+    try:
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        user_id = int(user_id)
+    except JWTError:
+        return None
+    return db.query(User).filter(User.id == user_id, User.enabled == True).first()
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
