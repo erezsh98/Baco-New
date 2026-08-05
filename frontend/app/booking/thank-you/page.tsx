@@ -2,36 +2,61 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+type Promo = { src: string; name: string };
+
 export default function ThankYouPage() {
   const [slotInfo, setSlotInfo] = useState<string>("");
+  const [promos, setPromos] = useState<Promo[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem("last_booking");
     if (saved) {
       const b = JSON.parse(saved);
-      setSlotInfo(`${b.club_name} — ${b.date} ${b.hour}:00`);
+      const mm = String(b.minutes_offset ?? 0).padStart(2, "0");
+      setSlotInfo(`${b.club_name} — ${b.date} ${String(b.hour).padStart(2, "0")}:${mm}`);
+      if (b.club_id) {
+        fetch(`/api/promotions?club_id=${b.club_id}`)
+          .then((r) => r.json())
+          .then((d) => setPromos(d.promotions || []))
+          .catch(() => {});
+      }
       localStorage.removeItem("last_booking");
     }
     localStorage.removeItem("selected_slot");
   }, []);
 
   return (
-    <main className="min-h-screen bg-mint flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-        <div className="text-6xl mb-4">🎾</div>
-        <h1 className="text-2xl font-bold text-court-dark mb-2">ההזמנה אושרה!</h1>
-        {slotInfo && <p className="text-muted mb-4 text-sm">{slotInfo}</p>}
-        <p className="text-muted text-sm mb-6">פרטי ההזמנה נשלחו לאימייל שלך.</p>
-        <div className="flex flex-col gap-3">
-          <Link href="/my-bookings"
-            className="bg-court text-white py-2 rounded-lg hover:bg-court-dark transition">
-            ההזמנות שלי
-          </Link>
-          <Link href="/search"
-            className="border border-court text-court py-2 rounded-lg hover:bg-mint transition">
-            חפש מגרש נוסף
-          </Link>
+    <main className="min-h-screen bg-mint p-4">
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-6 py-4">
+        {/* confirmation */}
+        <div className="w-full rounded-2xl bg-white p-8 text-center shadow-lg">
+          <div className="mb-4 text-6xl">🎾</div>
+          <h1 className="mb-2 text-2xl font-bold text-court-dark">ההזמנה אושרה!</h1>
+          {slotInfo && <p className="mb-4 text-sm text-muted">{slotInfo}</p>}
+          <p className="mb-6 text-sm text-muted">פרטי ההזמנה נשלחו לאימייל שלך.</p>
+          <div className="flex flex-col gap-3">
+            <Link href="/my-bookings" className="rounded-lg bg-court py-2 text-white transition hover:bg-court-dark">ההזמנות שלי</Link>
+            <Link href="/search" className="rounded-lg border border-court py-2 text-court transition hover:bg-mint">חפש מגרש נוסף</Link>
+          </div>
         </div>
+
+        {/* local-business promotions for this club */}
+        {promos.length > 0 && (
+          <section className="w-full">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-court-dark">מבצעים והטבות בקרבת המועדון</h2>
+              <span className="text-xs text-muted">מודעה</span>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {promos.map((p) => (
+                <div key={p.src} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.src} alt={p.name} className="block h-auto w-full" loading="lazy" />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );

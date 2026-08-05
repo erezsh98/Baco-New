@@ -44,7 +44,18 @@ export default function PaymentPage() {
         slot_id: slot.id,
         payment_method: "credit",
       });
-      setIframeHtml(res.data.iframe_html);
+      if (res.data.confirmed) {
+        // dev mode / no payment gateway — the order is already confirmed
+        rememberBooking();
+        localStorage.removeItem("selected_slot");
+        router.push("/booking/thank-you");
+        return;
+      }
+      if (res.data.iframe_html) {
+        setIframeHtml(res.data.iframe_html);
+      } else {
+        setError("שגיאה: לא התקבל מסך תשלום. נסו שוב או פנו לתמיכה.");
+      }
     } catch (e: any) {
       setError(e.response?.data?.detail || "שגיאה ביצירת הזמנה");
     } finally {
@@ -61,6 +72,7 @@ export default function PaymentPage() {
         payment_method: "ticket",
         customer_ticket_id: selectedTicket,
       });
+      rememberBooking();
       localStorage.removeItem("selected_slot");
       router.push("/booking/thank-you");
     } catch (e: any) {
@@ -68,6 +80,17 @@ export default function PaymentPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function rememberBooking() {
+    if (!slot) return;
+    localStorage.setItem("last_booking", JSON.stringify({
+      club_id: slot.club_id,
+      club_name: slot.club_name,
+      date: slot.date,
+      hour: slot.hour,
+      minutes_offset: slot.minutes_offset,
+    }));
   }
 
   if (!slot) return null;

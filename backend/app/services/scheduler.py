@@ -39,9 +39,13 @@ def rebuild(db: Session | None = None) -> None:
                 if offset < (club.rent_threshold_days or 0):
                     continue
 
-                for hour in range(tmpl.from_hour, tmpl.end_hour + 1):  # end_hour inclusive (matches legacy)
-                    if offset == 0 and hour < (club.rental_threshold_hours or 0):
-                        continue
+                # On the first generatable day, slots don't start before
+                # admin_start_hour + rental_threshold_hours (clamped up to from_hour) —
+                # legacy SchedulerService "hourToStartInCurDay". Later days: from_hour.
+                start_hour = tmpl.from_hour
+                if offset == 0:
+                    start_hour = max(start_hour, (club.admin_start_hour or 0) + (club.rental_threshold_hours or 0))
+                for hour in range(start_hour, tmpl.end_hour + 1):  # end_hour inclusive (matches legacy)
                     existing = db.query(AvailableCourtSlot).filter(
                         AvailableCourtSlot.rental_template_id == tmpl.id,
                         AvailableCourtSlot.curdate == target_date,

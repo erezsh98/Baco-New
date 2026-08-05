@@ -74,6 +74,7 @@ export default function Home() {
             <Link href="/tickets" className="hover:text-court">כרטיסיות</Link>
             <Link href="/my-bookings" className="hover:text-court">ההזמנות שלי</Link>
             <Link href="/contact" className="hover:text-court">צור קשר</Link>
+            <Link href="/privacy" className="hover:text-court">מדיניות פרטיות</Link>
           </nav>
         </div>
       </footer>

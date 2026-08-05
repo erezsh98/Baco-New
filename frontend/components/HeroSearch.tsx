@@ -14,7 +14,7 @@ export default function HeroSearch() {
   const [areaId, setAreaId] = useState("");
   const [clubId, setClubId] = useState("");
   const [date, setDate] = useState(today);
-  const [fromHour, setFromHour] = useState("17");
+  const [fromHour, setFromHour] = useState("6");
   const [toHour, setToHour] = useState("22");
 
   useEffect(() => {

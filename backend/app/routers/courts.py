@@ -1,7 +1,8 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
@@ -59,6 +60,25 @@ def search_courts(
         query = query.filter(Club.area_id == area_id)
     if club_id:
         query = query.filter(Club.id == club_id)
+
+    # Advance-booking window (legacy AvailableCourtsSearchController): a slot is
+    # only offered if it is at least the club's lead time away from now. Base
+    # cutoff = now (hides past/current slots); when a specific club is chosen,
+    # push it out by rent_threshold_days / rental_threshold_hours.
+    now = datetime.now()
+    cutoff_date = now.date()
+    cutoff_hour = now.hour
+    if club_id:
+        club = db.query(Club).filter(Club.id == club_id).first()
+        if club:
+            cutoff_date = now.date() + timedelta(days=club.rent_threshold_days or 0)
+            cutoff_hour = now.hour + (club.rental_threshold_hours or 0)
+    query = query.filter(
+        or_(
+            AvailableCourtSlot.curdate > cutoff_date,
+            and_(AvailableCourtSlot.curdate == cutoff_date, AvailableCourtSlot.hour > cutoff_hour),
+        )
+    )
 
     slots = query.order_by(AvailableCourtSlot.curdate, AvailableCourtSlot.hour).all()
 
