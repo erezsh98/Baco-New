@@ -12,7 +12,16 @@ from app.models.ticket import ClubCustomerPermittedTicket
 from app.models.court import AvailableCourtSlot
 from app.models.order import CourtOrder
 from app.models.user import User
+from app.services import audit
 from app.services.scheduler import rebuild
+
+
+def _order_club(order):
+    """(club_id, club_name) for an order via its slot's template, or (None, None)."""
+    slot = order.slot
+    tmpl = slot.rental_template if slot else None
+    club = tmpl.club if tmpl else None
+    return (club.id if club else None, club.club_name if club else None)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -91,12 +100,15 @@ def cancel_order(order_id: int, db: Session = Depends(get_db), admin: User = Dep
         raise HTTPException(status_code=404, detail="Order not found")
 
     slot = order.slot
+    club_id, club_name = _order_club(order)
     from app.services.email import send_cancellation_email
     send_cancellation_email(order, is_user=False)   # to the club: "בקשה לזיכוי"
     order.is_final = "C"
     if slot:
         slot.taken = None
         slot.order_id = None
+    audit.record(db, admin, "order.cancel", f"בוטלה הזמנה #{order.order_id}",
+                 club_id=club_id, club_name=club_name, detail={"order_id": order.order_id, "id": order.id})
     db.commit()
 
     # TODO: send cancellation SMS + create credit ticket (not yet ported)
@@ -109,12 +121,15 @@ def cancel_order_post(order_id: int, db: Session = Depends(get_db), admin: User 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     slot = order.slot
+    club_id, club_name = _order_club(order)
     from app.services.email import send_cancellation_email
     send_cancellation_email(order, is_user=False)   # to the club: "בקשה לזיכוי"
     order.is_final = "C"
     if slot:
         slot.taken = None
         slot.order_id = None
+    audit.record(db, admin, "order.cancel", f"בוטלה הזמנה #{order.order_id}",
+                 club_id=club_id, club_name=club_name, detail={"order_id": order.order_id, "id": order.id})
     db.commit()
     return {"message": "Order cancelled"}
 
@@ -234,10 +249,20 @@ def add_club_user(club_id: int, body: AddUserBody, db: Session = Depends(get_db)
             ticket_cost=group.ticket_cost,
         ))
 
+    group_name = group.description or ticket_type
+    club = db.query(Club).filter(Club.id == club_id).first()
+    audit.record(
+        db, admin, "permission.grant",
+        f"הוענקה הרשאה '{group_name}' ל{user.first_name} {user.last_name}"
+        + (f" עד {body.end_date:%d/%m/%Y}" if body.end_date else ""),
+        club_id=club_id, club_name=(club.club_name if club else None),
+        detail={"user_id": user.id, "user_name": f"{user.first_name} {user.last_name}",
+                "ticket_type": ticket_type, "group": group_name, "end_date": str(body.end_date)},
+    )
+
     db.commit()
 
     from app.services.email import send_add_to_group_email
-    club = db.query(Club).filter(Club.id == club_id).first()
     send_add_to_group_email(user, club, body.end_date, ticket_type)
 
     return {
@@ -251,6 +276,15 @@ def remove_permission(permit_id: int, db: Session = Depends(get_db), admin: User
     p = db.query(ClubCustomerPermittedTicket).filter(ClubCustomerPermittedTicket.id == permit_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
+    u = p.user
+    club = db.query(Club).filter(Club.id == p.club_id).first()
+    who = f"{u.first_name} {u.last_name}" if u else f"#{p.user_id}"
+    audit.record(
+        db, admin, "permission.revoke",
+        f"בוטלה הרשאה '{p.ticket_type}' מ{who}",
+        club_id=p.club_id, club_name=(club.club_name if club else None),
+        detail={"permit_id": permit_id, "user_id": p.user_id, "ticket_type": p.ticket_type},
+    )
     db.delete(p)
     db.commit()
     return {"message": "Removed"}
@@ -259,4 +293,6 @@ def remove_permission(permit_id: int, db: Session = Depends(get_db), admin: User
 @router.post("/rebuild")
 def trigger_rebuild(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     rebuild(db)
+    audit.record(db, admin, "availability.rebuild", "עדכון זמינות מלא (כל המועדונים)")
+    db.commit()
     return {"message": "Availability rebuilt"}

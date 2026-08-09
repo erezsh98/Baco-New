@@ -89,6 +89,7 @@ export default function Navbar() {
                       <Link href="/admin/schedule" onClick={closeMenus} className={itemCls}>עריכת לוח זמנים</Link>
                       <Link href="/admin/holidays" onClick={closeMenus} className={itemCls}>ימי חג / סגירה</Link>
                       <Link href="/admin/permissions" onClick={closeMenus} className={itemCls}>ניהול הרשאות</Link>
+                      <Link href="/admin/audit" onClick={closeMenus} className={itemCls}>יומן פעולות מנהלים</Link>
                     </div>
                   )}
                 </div>

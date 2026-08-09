@@ -10,8 +10,14 @@ from app.models.order import CourtOrder, UsersCart
 NUM_DAYS_AHEAD = 30
 
 
-def rebuild(db: Session | None = None) -> None:
-    """Regenerate available court slots for the next 30 days."""
+def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
+    """
+    Regenerate available court slots for the next 30 days.
+
+    club_id=None (the daily cron): rebuild every club — global clean slate.
+    club_id set (the schedule editor's "עדכן מערכת עם השינויים" button):
+    rebuild ONLY that club, leaving every other club's free slots untouched.
+    """
     close = db is None
     if db is None:
         db = SessionLocal()
@@ -20,10 +26,19 @@ def rebuild(db: Session | None = None) -> None:
         # abandoned-cart slots), keeping only slots with a real order. Matches
         # the legacy rebuild's "delete ... where taken is null" so that edits
         # which remove availability (blocked cells) don't leave stale slots.
-        db.query(AvailableCourtSlot).filter(AvailableCourtSlot.order_id.is_(None)).delete()
+        # When scoped to a club, restrict the delete to that club's templates
+        # (active AND inactive) so other clubs' availability is not disturbed.
+        del_q = db.query(AvailableCourtSlot).filter(AvailableCourtSlot.order_id.is_(None))
+        if club_id is not None:
+            club_tmpl_ids = db.query(RentalTemplate.id).filter(RentalTemplate.club_id == club_id)
+            del_q = del_q.filter(AvailableCourtSlot.rental_template_id.in_(club_tmpl_ids))
+        del_q.delete(synchronize_session=False)
 
         today = date.today()
-        templates = db.query(RentalTemplate).filter(RentalTemplate.is_active == "Y").all()
+        tmpl_q = db.query(RentalTemplate).filter(RentalTemplate.is_active == "Y")
+        if club_id is not None:
+            tmpl_q = tmpl_q.filter(RentalTemplate.club_id == club_id)
+        templates = tmpl_q.all()
 
         for tmpl in templates:
             club = tmpl.club
@@ -65,7 +80,10 @@ def rebuild(db: Session | None = None) -> None:
 
         # Apply holiday markers. Scope by the club's templates via a subquery —
         # a bulk .update() cannot run on a query that has a .join().
-        holidays = db.query(HolidayDate).all()
+        hol_q = db.query(HolidayDate)
+        if club_id is not None:
+            hol_q = hol_q.filter(HolidayDate.club_id == club_id)
+        holidays = hol_q.all()
         for h in holidays:
             club_tmpl_ids = db.query(RentalTemplate.id).filter(RentalTemplate.club_id == h.club_id)
             if h.court_number is not None:                       # block only this court
@@ -80,7 +98,10 @@ def rebuild(db: Session | None = None) -> None:
             ).update({"is_holiday": "Y"}, synchronize_session=False)
 
         # Remove holiday markers for overrides
-        overwrites = db.query(HolidayOverwrite).all()
+        ow_q = db.query(HolidayOverwrite)
+        if club_id is not None:
+            ow_q = ow_q.filter(HolidayOverwrite.club_id == club_id)
+        overwrites = ow_q.all()
         for o in overwrites:
             club_tmpl_ids = db.query(RentalTemplate.id).filter(RentalTemplate.club_id == o.club_id)
             db.query(AvailableCourtSlot).filter(

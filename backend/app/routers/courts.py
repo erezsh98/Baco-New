@@ -74,7 +74,12 @@ def search_courts(
             AvailableCourtSlot.is_holiday.is_(None),
             AvailableCourtSlot.curdate >= from_date,
             AvailableCourtSlot.curdate <= to_date,
-            RentalTemplate.is_active == "Y",
+            # NOTE: intentionally NOT filtering RentalTemplate.is_active here.
+            # The generated slots are the applied availability and only change
+            # when rebuild() runs. Saving a schedule deactivates the old
+            # templates immediately, but the change must not take effect until
+            # the manager clicks "עדכן מערכת עם השינויים" (rebuild). Filtering on
+            # is_active would hide the current availability during that gap.
         )
     )
     if from_hour is not None:

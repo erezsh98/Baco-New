@@ -28,9 +28,14 @@ from app.auth.dependencies import require_club_manager
 from app.database import get_db
 from app.models.club import ClubManager
 from app.models.court import HolidayDate
+from app.services import audit
 from app.services.scheduler import rebuild
 
 router = APIRouter(prefix="/admin/holidays", tags=["holidays"])
+
+
+def _court_label(court_number) -> str:
+    return "כל המגרשים" if court_number is None else f"מגרש {court_number}"
 
 MAX_HOUR = 23
 PERIOD = "period"
@@ -177,8 +182,17 @@ def list_holidays(db: Session = Depends(get_db), manager: ClubManager = Depends(
 @router.post("", status_code=201)
 def create_holiday(body: SpanIn, db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     _validate(body)
+    to_hour = body.end_hour  # user-facing exclusive to-hour, before we decrement
     body.end_hour -= 1  # store the last blocked slot hour (the to-hour is exclusive)
     _create_block(db, manager.club_id, body)
+    audit.record(
+        db, manager.user, "holiday.create",
+        f"נוספה חסימה — {_court_label(body.court_number)}, "
+        f"{body.start_date:%d/%m/%Y} {body.start_hour}:00–{to_hour}:00",
+        club_id=manager.club_id, club_name=(manager.club.club_name if manager.club else None),
+        detail={"court_number": body.court_number, "start_date": str(body.start_date),
+                "end_date": str(body.end_date), "start_hour": body.start_hour, "to_hour": to_hour},
+    )
     db.commit()
     rebuild(db)
     return {"message": "החסימה נוספה והזמינות עודכנה"}
@@ -188,9 +202,18 @@ def create_holiday(body: SpanIn, db: Session = Depends(get_db), manager: ClubMan
 def replace_holiday(body: SpanReplace, db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     """Edit a block: drop its old rows and recreate from the new definition."""
     _validate(body)
+    to_hour = body.end_hour  # user-facing exclusive to-hour, before we decrement
     body.end_hour -= 1  # store the last blocked slot hour (the to-hour is exclusive)
     _delete_rows(db, body.ids, manager.club_id)
     _create_block(db, manager.club_id, body)
+    audit.record(
+        db, manager.user, "holiday.update",
+        f"עודכנה חסימה — {_court_label(body.court_number)}, "
+        f"{body.start_date:%d/%m/%Y} {body.start_hour}:00–{to_hour}:00",
+        club_id=manager.club_id, club_name=(manager.club.club_name if manager.club else None),
+        detail={"ids": body.ids, "court_number": body.court_number, "start_date": str(body.start_date),
+                "end_date": str(body.end_date), "start_hour": body.start_hour, "to_hour": to_hour},
+    )
     db.commit()
     rebuild(db)
     return {"message": "החסימה עודכנה והזמינות עודכנה"}
@@ -199,6 +222,12 @@ def replace_holiday(body: SpanReplace, db: Session = Depends(get_db), manager: C
 @router.delete("")
 def delete_holiday(ids: list[int] = Body(..., embed=True), db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     _delete_rows(db, ids, manager.club_id)
+    audit.record(
+        db, manager.user, "holiday.delete",
+        f"בוטלו {len(ids)} חסימות",
+        club_id=manager.club_id, club_name=(manager.club.club_name if manager.club else None),
+        detail={"ids": ids},
+    )
     db.commit()
     rebuild(db)
     return {"message": "החסימה נמחקה והזמינות עודכנה"}

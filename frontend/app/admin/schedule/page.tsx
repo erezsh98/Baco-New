@@ -39,6 +39,7 @@ export default function SchedulePage() {
   const [brush, setBrush] = useState<Brush>({ kind: "block" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [rebuilding, setRebuilding] = useState(false);
   const [msg, setMsg] = useState("");
   const [msgOk, setMsgOk] = useState(false);
   const painting = useRef(false);
@@ -148,6 +149,15 @@ export default function SchedulePage() {
     if (m === "same") setTiers(p => p.map(t => ({ ...t, nonMember: t.member })));
   }
 
+  // Turn an axios error into a human-readable Hebrew explanation of the problem.
+  function problemText(e: any, fallback: string): string {
+    const detail = e?.response?.data?.detail;
+    if (detail) return typeof detail === "string" ? detail : JSON.stringify(detail);
+    if (e?.response?.status) return `${fallback} (קוד שגיאה ${e.response.status})`;
+    if (e?.message) return `${fallback}: ${e.message}`;
+    return fallback;
+  }
+
   async function save() {
     if (court == null) return;
     setSaving(true); setMsg("");
@@ -164,14 +174,28 @@ export default function SchedulePage() {
       const r = await api.post("/admin/schedule/matrix", {
         court_number: court, start_date: startDate, end_date: endDate, price_mode: priceMode, cells,
       });
-      setMsgOk(true);
-      setMsg(r.data.message || "נשמר");
-      await loadMatrix(court);
+      await loadMatrix(court);   // refresh grid from server first (this clears msg)...
+      setMsgOk(true);            // ...then show the success banner so it isn't wiped
+      setMsg(r.data.message || "לוח הזמנים נשמר בהצלחה.");
     } catch (e: any) {
       setMsgOk(false);
-      setMsg(e.response?.data?.detail || "שגיאה בשמירה");
+      setMsg(problemText(e, "שמירת לוח הזמנים נכשלה"));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function rebuildClub() {
+    setRebuilding(true); setMsg("");
+    try {
+      const r = await api.post("/admin/schedule/rebuild");
+      setMsgOk(true);
+      setMsg(r.data.message || "הזמינות עודכנה בהצלחה.");
+    } catch (e: any) {
+      setMsgOk(false);
+      setMsg(problemText(e, "עדכון הזמינות נכשל"));
+    } finally {
+      setRebuilding(false);
     }
   }
 
@@ -288,7 +312,6 @@ export default function SchedulePage() {
           </div>
         </div>
 
-        {msg && <p className={`text-sm mb-3 ${msgOk ? "text-court" : "text-red-600"}`}>{msg}</p>}
         {loading && <p className="text-center text-muted">טוען...</p>}
 
         {/* Matrix */}
@@ -329,10 +352,24 @@ export default function SchedulePage() {
           </div>
         )}
 
-        <div className="mt-4 flex justify-end">
-          <button onClick={save} disabled={saving || loading}
+        {/* Status banner for the last Save / Update action, shown right by the buttons. */}
+        {msg && (
+          <div className={`mt-4 rounded-lg px-4 py-3 text-sm font-medium flex items-start gap-2 ${
+            msgOk ? "bg-mint text-court-dark border border-court/30" : "bg-red-50 text-red-700 border border-red-300"
+          }`}>
+            <span className="text-lg leading-none">{msgOk ? "✓" : "⚠"}</span>
+            <span>{msg}</span>
+          </div>
+        )}
+
+        <div className="mt-4 flex justify-end gap-3">
+          <button onClick={rebuildClub} disabled={rebuilding || saving || loading}
+            className="border-2 border-court text-court px-6 py-3 rounded-lg hover:bg-mint transition disabled:opacity-50 font-semibold">
+            {rebuilding ? "מעדכן זמינות..." : "עדכן מערכת עם השינויים"}
+          </button>
+          <button onClick={save} disabled={saving || rebuilding || loading}
             className="bg-court text-white px-8 py-3 rounded-lg hover:bg-court-dark transition disabled:opacity-50 font-semibold">
-            {saving ? "שומר ובונה זמינות..." : "שמור"}
+            {saving ? "שומר..." : "שמור"}
           </button>
         </div>
       </div>

@@ -4,3 +4,4 @@ from app.models.court import RentalTemplate, AvailableCourtSlot, CourtLockDate, 
 from app.models.order import CourtOrder, UsersCart, RentalLog
 from app.models.ticket import ClubTicket, CustomerTicket, TicketActiveTime, ClubCustomerPermittedTicket
 from app.models.misc import ResetPassword, Contact, PelecardErrorList
+from app.models.audit import AuditLog

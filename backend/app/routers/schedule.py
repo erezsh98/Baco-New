@@ -13,12 +13,14 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_club_manager
 from app.database import get_db
 from app.models.club import Club, ClubManager
 from app.models.court import RentalTemplate
+from app.services import audit
 from app.services.scheduler import rebuild
 
 router = APIRouter(prefix="/admin/schedule", tags=["schedule"])
@@ -157,7 +159,9 @@ def _merge_cells(cells: list[MatrixCell]) -> list[tuple[str, int, int, int, int,
 def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     """
     Reconcile the edited matrix into rental_template rows for the manager's
-    club + court, then rebuild bookable availability.
+    club + court. This PERSISTS the schedule only — it does not rebuild
+    bookable availability. The manager applies the change to live slots
+    separately via POST /admin/schedule/rebuild ("עדכן מערכת עם השינויים").
 
     Existing active templates are deactivated (is_active='N') rather than
     deleted, so any already-booked slots that reference them stay intact;
@@ -191,8 +195,8 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
     for t in existing:
         t.is_active = "N"
 
-    created = 0
-    for days_str, fh, eh, m, nm, off in _merge_cells(payload.cells):
+    merged = _merge_cells(payload.cells)
+    for days_str, fh, eh, m, nm, off in merged:
         db.add(RentalTemplate(
             club_id=manager.club_id,
             court_number=payload.court_number,
@@ -208,25 +212,71 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
             for_member=for_member,
             surface_type=surface_type,
         ))
-        created += 1
+    created = len(merged)
+
+    club_name = manager.club.club_name if manager.club else None
+    audit.record(
+        db, manager.user, "schedule.save",
+        f"עודכן לוח זמנים — מגרש {payload.court_number}, "
+        f"{payload.start_date:%d/%m/%Y}–{payload.end_date:%d/%m/%Y}, {created} תבניות",
+        club_id=manager.club_id, club_name=club_name,
+        detail={
+            "court_number": payload.court_number,
+            "start_date": str(payload.start_date),
+            "end_date": str(payload.end_date),
+            "price_mode": payload.price_mode,
+            "templates": [
+                {"days": ds, "from_hour": fh, "end_hour": eh,
+                 "member_price": m, "non_member_price": nm, "minutes_offset": off}
+                for ds, fh, eh, m, nm, off in merged
+            ],
+        },
+    )
 
     db.commit()
 
-    # Auto-rebuild so the schedule change is reflected in bookable slots.
-    # (rebuild clears every free slot and regenerates from active templates.)
-    rebuild(db)
+    return {
+        "message": 'לוח הזמנים נשמר. לחצו "עדכן מערכת עם השינויים" כדי להחיל על הזמינות.',
+        "templates_created": created,
+    }
 
-    # Housekeeping: drop deactivated templates for this court that no longer
-    # have any slot referencing them (i.e. no confirmed booking depends on
-    # them). Those with booked slots are kept so history stays intact.
+
+@router.post("/rebuild")
+def rebuild_club(db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
+    """
+    Apply saved schedule changes to bookable availability — for THIS manager's
+    club only. Regenerates free slots from the club's active templates and
+    re-marks holidays, leaving every other club untouched. The daily 01:00 cron
+    still rebuilds all clubs globally.
+    """
+    rebuild(db, club_id=manager.club_id)
+
+    # Housekeeping: now that the rebuild has cleared this club's free slots and
+    # regenerated them from active templates, drop deactivated templates that no
+    # longer have any slot referencing them. Templates still referenced by a
+    # booked slot are kept so history stays intact.
     from app.models.court import AvailableCourtSlot
     referenced = db.query(AvailableCourtSlot.rental_template_id).distinct()
     db.query(RentalTemplate).filter(
         RentalTemplate.club_id == manager.club_id,
-        RentalTemplate.court_number == payload.court_number,
         RentalTemplate.is_active == "N",
         RentalTemplate.id.notin_(referenced),
     ).delete(synchronize_session=False)
+
+    from app.models.court import AvailableCourtSlot as _Slot
+    free_slots = (
+        db.query(func.count(_Slot.id))
+        .join(RentalTemplate, _Slot.rental_template_id == RentalTemplate.id)
+        .filter(RentalTemplate.club_id == manager.club_id, _Slot.order_id.is_(None))
+        .scalar()
+    )
+    club_name = manager.club.club_name if manager.club else None
+    audit.record(
+        db, manager.user, "availability.rebuild",
+        f"עדכון זמינות למועדון — {free_slots} סלוטים פנויים",
+        club_id=manager.club_id, club_name=club_name,
+        detail={"free_slots": free_slots},
+    )
     db.commit()
 
-    return {"message": "לוח הזמנים נשמר והזמינות נבנתה מחדש", "templates_created": created}
+    return {"message": "הזמינות עודכנה בהצלחה לפי השינויים האחרונים."}
