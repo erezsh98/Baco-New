@@ -39,6 +39,7 @@ class Club(Base):
     admin_start_hour = Column(Integer)
     rent_threshold_days = Column(Integer)
     rental_threshold_hours = Column(Integer)
+    slot_window_days = Column(Integer, nullable=True)   # how many days ahead to generate slots; NULL = default (30)
     u_name = Column(String(255))          # Pelecard merchant username
     sms_to_manager = Column(String(1))    # Y/N
     sms_to_gate = Column(String(1))       # Y/N

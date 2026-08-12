@@ -7,12 +7,13 @@ from app.database import SessionLocal
 from app.models.court import AvailableCourtSlot, RentalTemplate, HolidayDate, HolidayOverwrite
 from app.models.order import CourtOrder, UsersCart
 
-NUM_DAYS_AHEAD = 30
+NUM_DAYS_AHEAD = 30  # default slot-generation window when a club has no slot_window_days set
 
 
 def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
     """
-    Regenerate available court slots for the next 30 days.
+    Regenerate available court slots for each club's booking window
+    (club.slot_window_days, or 30 days when unset).
 
     club_id=None (the daily cron): rebuild every club — global clean slate.
     club_id set (the schedule editor's "עדכן מערכת עם השינויים" button):
@@ -43,8 +44,10 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
         for tmpl in templates:
             club = tmpl.club
             days = [int(d) for d in tmpl.days_str.split(",") if d.strip()]
+            # Per-club generation window; NULL falls back to the 30-day default.
+            window_days = club.slot_window_days or NUM_DAYS_AHEAD
 
-            for offset in range(NUM_DAYS_AHEAD):
+            for offset in range(window_days):
                 target_date = today + timedelta(days=offset)
                 # day_of_week: 1=Sunday ... 7=Saturday (matching original app)
                 dow = target_date.isoweekday() % 7 + 1  # isoweekday Mon=1..Sun=7 → Sun=1..Sat=7
