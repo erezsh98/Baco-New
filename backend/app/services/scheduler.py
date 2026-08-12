@@ -52,6 +52,12 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
                 # day_of_week: 1=Sunday ... 7=Saturday (matching original app)
                 dow = target_date.isoweekday() % 7 + 1  # isoweekday Mon=1..Sun=7 → Sun=1..Sat=7
 
+                # Honor the template's effective date range (legacy behavior):
+                # renew-model templates end in 2050 so they always pass; period
+                # templates only generate slots inside their [start, end] window.
+                sd, ed = tmpl.start_effective_date, tmpl.end_effective_date
+                if (sd and target_date < sd) or (ed and target_date > ed):
+                    continue
                 if dow not in days:
                     continue
                 if offset < (club.rent_threshold_days or 0):

@@ -12,6 +12,7 @@ type Slot = {
   date: string; hour: number; minutes_offset: number;
   member_price: number; non_member_price: number;
   price: number; is_member_price: boolean; is_free: boolean;
+  covered_by_subscription: boolean;
 };
 
 export default function SearchPage() {
@@ -173,7 +174,9 @@ export default function SearchPage() {
                     <td className="px-4 py-3">{s.hour}:{String(s.minutes_offset).padStart(2, "0")}</td>
                     <td className="px-4 py-3">מגרש {s.court_number}</td>
                     <td className="px-4 py-3">
-                      {s.is_free ? (
+                      {s.covered_by_subscription ? (
+                        <span className="font-bold text-court">כלול במנוי</span>
+                      ) : s.is_free ? (
                         <span className="font-bold text-court">חינם</span>
                       ) : (
                         <>₪{s.price}{s.is_member_price && <span className="mr-1 text-xs text-court">מחיר חבר</span>}</>

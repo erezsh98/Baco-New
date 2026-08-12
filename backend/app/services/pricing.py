@@ -7,12 +7,55 @@ member_price instead of non_member_price. member_price may be 0 → the booking 
 """
 from datetime import date
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from app.models.ticket import ClubCustomerPermittedTicket
+from app.models.ticket import ClubCustomerPermittedTicket, ClubTicket, CustomerTicket
 
-MEMBER_TYPE = "חבר מועדון"  # club-member pricing privilege (pay member_price)
+MEMBER_TYPE = "חבר מועדון"      # club-member pricing privilege (pay member_price)
+SUBSCRIPTION_TYPE = "מנוי"      # subscription ticket — books slots at no per-booking cost
+
+
+def has_subscription_on(db: Session, user_id: int | None, club_id: int, on_date: date) -> bool:
+    """True if the user holds a מנוי (subscription) for this club that is valid
+    ON on_date — i.e. its end_date has not passed by the booking date. A slot on
+    2026-08-20 is NOT covered by a subscription that ends 2026-08-17."""
+    if not user_id:
+        return False
+    row = (
+        db.query(CustomerTicket.id)
+        .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
+        .filter(
+            CustomerTicket.user_id == user_id,
+            ClubTicket.club_id == club_id,
+            func.trim(ClubTicket.ticket_type) == SUBSCRIPTION_TYPE,
+            CustomerTicket.end_date >= on_date,
+        )
+        .first()
+    )
+    return row is not None
+
+
+def subscription_end_by_club(db: Session, user_id: int | None) -> dict[int, date]:
+    """
+    Map club_id -> latest מנוי end_date, for subscriptions that still have some
+    remaining validity (end_date >= today). A slot at that club is covered by the
+    subscription only when slot.curdate <= end_date. Empty for anonymous users.
+    """
+    if not user_id:
+        return {}
+    today = date.today()
+    rows = (
+        db.query(ClubTicket.club_id, func.max(CustomerTicket.end_date))
+        .join(CustomerTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
+        .filter(
+            CustomerTicket.user_id == user_id,
+            func.trim(ClubTicket.ticket_type) == SUBSCRIPTION_TYPE,
+        )
+        .group_by(ClubTicket.club_id)
+        .all()
+    )
+    return {club_id: end for club_id, end in rows if end is not None and end >= today}
 
 
 def is_club_member(db: Session, user_id: int | None, club_id: int) -> bool:

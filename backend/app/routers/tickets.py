@@ -34,12 +34,14 @@ def day_of_week(d: date) -> int:
     return (d.isoweekday() % 7) + 1
 
 
-def _member_ticket(db: Session, user: User, club: Club) -> CustomerTicket | None:
+def _member_ticket(db: Session, user: User, club: Club, on_date: date | None = None) -> CustomerTicket | None:
     """
-    Find an active subscription (מנוי) ticket for the user at this club.
-    Mirrors PaymentController.getMemberTicket() — matched by ticket_type and
-    end_date only; a subscription is NOT subject to the active-time windows.
+    Find a subscription (מנוי) ticket for the user at this club that is valid on
+    on_date (the slot's date). Matched by ticket_type and end_date; a subscription
+    is NOT subject to the active-time windows. A subscription ending 2026-08-17
+    does not cover a booking for 2026-08-20.
     """
+    ref = on_date or date.today()
     return (
         db.query(CustomerTicket)
         .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
@@ -47,7 +49,7 @@ def _member_ticket(db: Session, user: User, club: Club) -> CustomerTicket | None
             CustomerTicket.user_id == user.id,
             ClubTicket.club_id == club.id,
             func.trim(ClubTicket.ticket_type) == SUBSCRIPTION_TYPE,
-            CustomerTicket.end_date > date.today(),
+            CustomerTicket.end_date >= ref,
         )
         .first()
     )
@@ -89,7 +91,7 @@ def eligible_tickets_for_slot(
     if club is None:
         return [], True
 
-    member = _member_ticket(db, user, club)
+    member = _member_ticket(db, user, club, slot.curdate)
     if member is not None:
         allowed = True
         max_per_day = member.club_ticket.max_orders_per_day if member.club_ticket else NO_DAILY_LIMIT

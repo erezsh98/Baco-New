@@ -8,6 +8,7 @@ type Slot = {
   court_number: number; date: string; hour: number; minutes_offset: number;
   member_price: number; non_member_price: number;
   price?: number; is_member_price?: boolean; is_free?: boolean;
+  covered_by_subscription?: boolean;
 };
 
 type Ticket = { id: number; club_ticket_id: number; ticket_name: string; unlimited: boolean; punches_left: number | null };
@@ -37,7 +38,13 @@ export default function PaymentPage() {
         .catch(() => {});
       // Slot-aware: only כרטיסיות valid for this slot's day/hour (ticket_active_time)
       api.get(`/tickets/for-slot?slot_id=${s.id}`)
-        .then(r => { setTickets(r.data.tickets); setOrderLimit(r.data.order_limit); })
+        .then(r => {
+          setTickets(r.data.tickets);
+          setOrderLimit(r.data.order_limit);
+          // When the user has any eligible כרטיסייה (a מנוי or a punch-card),
+          // open the כרטיסייה tab so they see and choose it — but don't pre-pick.
+          if (r.data.tickets?.length > 0) setPayMethod("ticket");
+        })
         .catch(() => {});
     }
   }, []);
@@ -122,8 +129,9 @@ export default function PaymentPage() {
           <p className="text-sm text-muted">{slot.club_name} — מגרש {slot.court_number}</p>
           <p className="text-sm text-muted">{slot.date} | {slot.hour}:{String(slot.minutes_offset).padStart(2, "0")}</p>
           <p className="text-sm font-bold text-court mt-1">
-            {slot.is_free ? "ללא עלות" : `₪${slot.price ?? slot.non_member_price}`}
-            {slot.is_member_price && !slot.is_free && <span className="mr-2 text-xs text-court">(מחיר חבר מועדון)</span>}
+            {slot.covered_by_subscription ? "כלול במנוי" : slot.is_free ? "ללא עלות" : `₪${slot.price ?? slot.non_member_price}`}
+            {slot.is_member_price && !slot.is_free && !slot.covered_by_subscription && <span className="mr-2 text-xs text-court">(מחיר חבר מועדון)</span>}
+            {slot.covered_by_subscription && <span className="mr-2 text-xs text-court">(בחרו כרטיסייה למטה)</span>}
           </p>
         </div>
 
