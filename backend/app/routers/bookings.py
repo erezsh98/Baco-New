@@ -56,6 +56,22 @@ def _issue_cancellation_credit(order: CourtOrder, db: Session) -> None:
     ))
 
 
+def _refund_eligible(order: CourtOrder) -> bool:
+    """
+    A completed order the user may request a refund (זיכוי) for:
+      • paid by credit card with amount > 0, OR
+      • paid by כרטיסייה that is NOT a subscription (מנוי).
+    Subscription bookings and free (amount 0) card bookings are not eligible.
+    """
+    if order.is_final != "Y":
+        return False
+    if order.customer_ticket_id is None:            # credit card
+        return (order.amount or 0) > 0
+    ct = order.customer_ticket                       # ticket payment
+    ticket_type = (ct.club_ticket.ticket_type or "").strip() if ct and ct.club_ticket else ""
+    return ticket_type != SUBSCRIPTION_TYPE
+
+
 class BookingOut(BaseModel):
     id: int
     order_id: int
@@ -66,6 +82,7 @@ class BookingOut(BaseModel):
     minutes_offset: int = 0
     amount: float | None
     is_final: str | None
+    refund_eligible: bool = False
 
     class Config:
         from_attributes = True
@@ -131,6 +148,7 @@ def _booking_out(order: CourtOrder) -> BookingOut:
         minutes_offset=(template.minutes_offset or 0) if template else 0,
         amount=order.amount,
         is_final=order.is_final,
+        refund_eligible=_refund_eligible(order),
     )
 
 
@@ -162,6 +180,43 @@ def list_my_bookings(future: bool = True, db: Session = Depends(get_db), current
     today = date.today()
     filtered = [o for o in orders if o.slot and (o.slot.curdate >= today if future else o.slot.curdate < today)]
     return [_booking_out(o) for o in filtered]
+
+
+class RefundRequestBody(BaseModel):
+    reason: str
+
+
+@router.post("/{order_id}/refund-request")
+def request_refund(order_id: int, body: RefundRequestBody, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    A user asks the club to refund (זיכוי) a past order, with a reason. Emails the
+    club (club.email) with the order details + reason. Does NOT cancel the order
+    or issue credit — the club acts on the request. Eligibility mirrors _refund_eligible.
+    """
+    order = db.query(CourtOrder).filter(
+        CourtOrder.id == order_id,
+        CourtOrder.user_id == current_user.id,
+        CourtOrder.is_final == "Y",
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="הזמנה לא נמצאה")
+
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="יש להזין סיבה לבקשת הזיכוי")
+    if not _refund_eligible(order):
+        raise HTTPException(status_code=400, detail="הזמנה זו אינה זכאית לבקשת זיכוי")
+
+    slot = order.slot
+    club = slot.rental_template.club if slot and slot.rental_template else None
+    if not club or not club.email:
+        raise HTTPException(status_code=400, detail="למועדון לא הוגדרה כתובת דוא\"ל לשליחת הבקשה")
+
+    from app.services.email import send_refund_request
+    if not send_refund_request(order, reason):
+        raise HTTPException(status_code=502, detail="שליחת הבקשה נכשלה. נסו שוב מאוחר יותר.")
+
+    return {"message": "בקשת הזיכוי נשלחה למנהל המועדון."}
 
 
 class CreateBookingRequest2(BaseModel):

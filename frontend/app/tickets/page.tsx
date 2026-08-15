@@ -4,12 +4,49 @@ import Link from "next/link";
 import api from "@/lib/api";
 
 type Ticket = {
-  id: number; ticket_name: string; club_name: string;
+  id: number; ticket_name: string; ticket_type: string; club_name: string;
   total_punches: number; punches_left: number; valid_until: string;
   unlimited: boolean; is_valid: boolean;
 };
 
 const today = new Date().toISOString().split("T")[0];
+const CREDIT_TYPE = "זיכוי";
+
+// Group a list of credit (זיכוי) tickets by club, so many 1-punch vouchers show
+// as a single line. Returns [club_name, tickets[]] entries.
+function groupByClub(list: Ticket[]): [string, Ticket[]][] {
+  const m = new Map<string, Ticket[]>();
+  for (const t of list) {
+    if (!m.has(t.club_name)) m.set(t.club_name, []);
+    m.get(t.club_name)!.push(t);
+  }
+  return [...m.entries()];
+}
+
+// One merged card for all of a club's זיכוי credits.
+function CreditCard({ club, tickets, done }: { club: string; tickets: Ticket[]; done?: boolean }) {
+  // Valid credits: available count = remaining punches; show the soonest expiry.
+  // Completed: just the number of vouchers.
+  const count = done ? tickets.length : tickets.reduce((s, t) => s + t.punches_left, 0);
+  const nearest = [...tickets].map(t => t.valid_until).sort()[0];
+  return (
+    <div className={`bg-white rounded-xl shadow p-4 ${done ? "opacity-70" : ""}`}>
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <p className="font-semibold text-ink">זיכוי</p>
+          <p className="text-sm text-muted">{club}</p>
+        </div>
+        <div className="text-left">
+          {done && <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600">הסתיימו</span>}
+          {!done && <p className="text-sm text-muted mt-1">התוקף הקרוב: {nearest}</p>}
+        </div>
+      </div>
+      <p className={`text-sm font-medium ${done ? "text-muted" : "text-court"}`}>
+        {count} {count === 1 ? "יחידת זיכוי" : "יחידות זיכוי"}
+      </p>
+    </div>
+  );
+}
 
 function TicketCard({ t, done }: { t: Ticket; done?: boolean }) {
   const pct = t.total_punches > 0 ? Math.max(0, Math.min(100, Math.round((t.punches_left / t.total_punches) * 100))) : 0;
@@ -58,6 +95,12 @@ export default function TicketsPage() {
 
   const valid = tickets.filter(t => t.is_valid);
   const completed = tickets.filter(t => !t.is_valid);
+  const isCredit = (t: Ticket) => t.ticket_type === CREDIT_TYPE;
+  const validOther = valid.filter(t => !isCredit(t));
+  const validCredits = groupByClub(valid.filter(isCredit));
+  const completedOther = completed.filter(t => !isCredit(t));
+  const completedCredits = groupByClub(completed.filter(isCredit));
+  const validCount = validOther.length + validCredits.length;
 
   return (
     <main className="min-h-screen bg-mint p-4">
@@ -87,11 +130,12 @@ export default function TicketsPage() {
             <section>
               <h2 className="text-sm font-bold text-court-dark mb-3 flex items-center gap-2">
                 <span className="inline-block h-2 w-2 rounded-full bg-court" />
-                בתוקף ({valid.length})
+                בתוקף ({validCount})
               </h2>
-              {valid.length > 0 ? (
+              {validCount > 0 ? (
                 <div className="space-y-3">
-                  {valid.map(t => <TicketCard key={t.id} t={t} />)}
+                  {validOther.map(t => <TicketCard key={t.id} t={t} />)}
+                  {validCredits.map(([club, arr]) => <CreditCard key={`c-${club}`} club={club} tickets={arr} />)}
                 </div>
               ) : (
                 <p className="text-sm text-muted">אין כרטיסיות בתוקף</p>
@@ -99,14 +143,15 @@ export default function TicketsPage() {
             </section>
 
             {/* completed / expired */}
-            {completed.length > 0 && (
+            {(completedOther.length + completedCredits.length) > 0 && (
               <section>
                 <h2 className="text-sm font-bold text-muted mb-3 flex items-center gap-2">
                   <span className="inline-block h-2 w-2 rounded-full bg-muted" />
-                  הסתיימו ({completed.length})
+                  הסתיימו ({completedOther.length + completedCredits.length})
                 </h2>
                 <div className="space-y-3">
-                  {completed.map(t => <TicketCard key={t.id} t={t} done />)}
+                  {completedOther.map(t => <TicketCard key={t.id} t={t} done />)}
+                  {completedCredits.map(([club, arr]) => <CreditCard key={`cc-${club}`} club={club} tickets={arr} done />)}
                 </div>
               </section>
             )}

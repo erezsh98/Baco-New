@@ -15,6 +15,7 @@ const DAY_LABELS: Record<number, string> = {
 const OFFSETS = [0, 15, 30, 45];
 const RENEW_END = "2050-12-31";
 const PERIODS_PER_PAGE = 10;
+const SURFACES = ["קשה", "חימר", "דשא"];   // court surface types (fixed dropdown)
 
 type Tier = { id: number; color: string; member: number; nonMember: number };
 type Cell = { tier: number; offset: number };
@@ -42,6 +43,7 @@ export default function SchedulePage() {
   const [periods, setPeriods] = useState<Period[]>([]);
   const [periodView, setPeriodView] = useState<"list" | "editor">("list");
   const [periodPage, setPeriodPage] = useState(0);   // pagination for the periods list
+  const [surfaceType, setSurfaceType] = useState("");   // court-level surface
 
   // editor state
   const [startDate, setStartDate] = useState("");
@@ -109,6 +111,7 @@ export default function SchedulePage() {
       const r = await api.get(`/admin/schedule/court?court_number=${c}`);
       const d = r.data;
       setModel(d.model); setServerModel(d.model);
+      setSurfaceType(d.surface_type || "");
       if (d.model === "auto") {
         loadGrid(d.cells, d.price_mode, d.hour_from, d.hour_to);
         setStartDate(d.start_date); setEndDate(d.end_date);
@@ -317,6 +320,7 @@ export default function SchedulePage() {
     setSaving(true); setMsg("");
     const payload: any = {
       court_number: court, model, price_mode: priceMode,
+      surface_type: surfaceType || null,
       cells: buildCells(), confirm_block_conflicts: confirm,
     };
     if (model === "auto") { payload.start_date = today; payload.end_date = RENEW_END; }
@@ -381,6 +385,30 @@ export default function SchedulePage() {
           <button onClick={leaveToAdmin} className="text-sm text-court hover:underline">חזרה לניהול</button>
         </div>
 
+        {/* Club-wide action: exposing rebuilds availability for ALL courts of the club. */}
+        <div className="bg-white rounded-xl shadow p-4 mb-4 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-sm font-semibold text-ink">חשיפת שינויים למשתמשים</p>
+            <p className="text-xs text-muted">
+              {savedPendingExpose && !rebuilding
+                ? "השינויים נשמרו — יופיעו למשתמשים לאחר החשיפה (או אוטומטית מחר)."
+                : "העדכון חל על כל המגרשים במועדון."}
+            </p>
+          </div>
+          <button onClick={rebuildClub} disabled={!savedPendingExpose || rebuilding || saving || loading}
+            title={!savedPendingExpose ? 'זמין רק לאחר לחיצה על "שמור שינויים"' : ""}
+            className="border-2 border-court text-court px-6 py-3 rounded-lg hover:bg-mint transition disabled:opacity-40 disabled:cursor-not-allowed font-semibold whitespace-nowrap">
+            {rebuilding ? "חושף שינויים..." : "חשוף שינויים למשתמשים"}
+          </button>
+        </div>
+
+        {/* Status banner (last Save / Expose / period action result) */}
+        {msg && (
+          <div className={`mb-4 rounded-lg px-4 py-3 text-sm font-medium flex items-start gap-2 ${msgOk ? "bg-mint text-court-dark border border-court/30" : "bg-red-50 text-red-700 border border-red-300"}`}>
+            <span className="text-lg leading-none">{msgOk ? "✓" : "⚠"}</span><span>{msg}</span>
+          </div>
+        )}
+
         {/* Court + model selector */}
         <div className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap gap-6 items-end">
           <div>
@@ -400,6 +428,14 @@ export default function SchedulePage() {
                 <input type="radio" checked={model === "period"} onChange={() => selectModel("period")} /> משתנה לפי תקופה
               </label>
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-ink mb-1">סוג משטח</label>
+            <select value={surfaceType} onChange={e => { setSurfaceType(e.target.value); setDirty(true); }}
+              className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
+              <option value="">— לא מוגדר —</option>
+              {SURFACES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           {model === "auto" && (
             <p className="text-xs text-muted">לוח קבוע ללא תאריך סיום.</p>
@@ -566,30 +602,15 @@ export default function SchedulePage() {
           </>
         )}
 
-        {/* Status banner */}
-        {msg && (
-          <div className={`mt-4 rounded-lg px-4 py-3 text-sm font-medium flex items-start gap-2 ${msgOk ? "bg-mint text-court-dark border border-court/30" : "bg-red-50 text-red-700 border border-red-300"}`}>
-            <span className="text-lg leading-none">{msgOk ? "✓" : "⚠"}</span><span>{msg}</span>
-          </div>
-        )}
-
-        {/* Action buttons */}
-        <div className="mt-4 flex justify-end gap-3 items-center">
-          {savedPendingExpose && !rebuilding && (
-            <span className="text-xs text-muted">השינויים נשמרו — יופיעו למשתמשים לאחר החשיפה (או אוטומטית מחר).</span>
-          )}
-          <button onClick={rebuildClub} disabled={!savedPendingExpose || rebuilding || saving || loading}
-            title={!savedPendingExpose ? 'זמין רק לאחר לחיצה על "שמור שינויים"' : ""}
-            className="border-2 border-court text-court px-6 py-3 rounded-lg hover:bg-mint transition disabled:opacity-40 disabled:cursor-not-allowed font-semibold">
-            {rebuilding ? "חושף שינויים..." : "חשוף שינויים למשתמשים"}
-          </button>
-          {showEditor && !readOnly && (
+        {/* Save is court-level (persists the current court's schedule). */}
+        {showEditor && !readOnly && (
+          <div className="mt-4 flex justify-end">
             <button onClick={() => doSave(false)} disabled={saving || rebuilding || loading}
               className="bg-court text-white px-8 py-3 rounded-lg hover:bg-court-dark transition disabled:opacity-50 font-semibold">
               {saving ? "שומר..." : "שמור שינויים"}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Block-conflict confirmation modal */}

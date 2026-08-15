@@ -189,6 +189,7 @@ def list_my_tickets(club_id: int | None = None, include_all: bool = False, db: S
             "id": t.id,
             "club_ticket_id": t.club_ticket_id,
             "ticket_name": ct.description or "",
+            "ticket_type": (ct.ticket_type or "").strip(),
             "club_name": ct.club.club_name if ct.club else "",
             "total_punches": ct.total_num_of_punches or 0,
             "punches_left": punches_left,

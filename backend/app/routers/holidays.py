@@ -27,7 +27,8 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import require_club_manager
 from app.database import get_db
 from app.models.club import ClubManager
-from app.models.court import HolidayDate
+from app.models.court import AvailableCourtSlot, HolidayDate, RentalTemplate
+from app.models.order import CourtOrder
 from app.services import audit
 from app.services.scheduler import rebuild
 
@@ -49,6 +50,7 @@ class SpanIn(BaseModel):
     start_hour: int
     end_date: date
     end_hour: int
+    confirm_block_conflicts: bool = False   # proceed even if existing bookings fall in the block
 
 
 class SpanReplace(SpanIn):
@@ -169,6 +171,54 @@ def _create_block(db: Session, club_id: int, s: SpanIn) -> None:
                                start_date=sd, end_date=ed, start_hour=sh, end_hour=eh))
 
 
+def _block_conflicts(db: Session, club_id: int, s: SpanIn) -> list[dict]:
+    """
+    Confirmed FUTURE reservations that fall inside the block about to be created
+    (uses the STORED, already-decremented hours). Blocking never cancels these —
+    it only stops offering the slots — so the admin is asked before proceeding.
+    """
+    rows = (
+        [(s.start_date, s.end_date, s.start_hour, s.end_hour)]
+        if s.block_type == RECURRING
+        else _decompose(s.start_date, s.start_hour, s.end_date, s.end_hour)
+    )
+    today = date.today()
+    seen: set[int] = set()
+    out: list[dict] = []
+    for sd, ed, sh, eh in rows:
+        q = (
+            db.query(AvailableCourtSlot, CourtOrder)
+            .join(RentalTemplate, AvailableCourtSlot.rental_template_id == RentalTemplate.id)
+            .join(CourtOrder, AvailableCourtSlot.order_id == CourtOrder.id)
+            .filter(
+                RentalTemplate.club_id == club_id,
+                AvailableCourtSlot.order_id.isnot(None),
+                CourtOrder.is_final == "Y",
+                AvailableCourtSlot.curdate >= sd,
+                AvailableCourtSlot.curdate <= ed,
+                AvailableCourtSlot.curdate >= today,
+                AvailableCourtSlot.hour >= sh,
+                AvailableCourtSlot.hour <= eh,
+            )
+        )
+        if s.court_number is not None:      # NULL block = all courts
+            q = q.filter(RentalTemplate.court_number == s.court_number)
+        for slot, order in q.all():
+            if slot.id in seen:
+                continue
+            seen.add(slot.id)
+            u = order.user
+            out.append({
+                "date": str(slot.curdate),
+                "hour": slot.hour,
+                "court_number": slot.rental_template.court_number,
+                "order_id": order.order_id,
+                "customer": f"{u.first_name} {u.last_name}" if u else "",
+            })
+    out.sort(key=lambda x: (x["date"], x["hour"]))
+    return out
+
+
 @router.get("", response_model=list[SpanOut])
 def list_holidays(db: Session = Depends(get_db), manager: ClubManager = Depends(require_club_manager)):
     rows = db.query(HolidayDate).filter(HolidayDate.club_id == manager.club_id).all()
@@ -184,6 +234,14 @@ def create_holiday(body: SpanIn, db: Session = Depends(get_db), manager: ClubMan
     _validate(body)
     to_hour = body.end_hour  # user-facing exclusive to-hour, before we decrement
     body.end_hour -= 1  # store the last blocked slot hour (the to-hour is exclusive)
+
+    conflicts = _block_conflicts(db, manager.club_id, body)
+    if conflicts and not body.confirm_block_conflicts:
+        raise HTTPException(status_code=409, detail={
+            "message": "קיימות הזמנות עתידיות במשבצות שברצונך לחסום.",
+            "conflicts": conflicts,
+        })
+
     _create_block(db, manager.club_id, body)
     audit.record(
         db, manager.user, "holiday.create",
@@ -204,6 +262,14 @@ def replace_holiday(body: SpanReplace, db: Session = Depends(get_db), manager: C
     _validate(body)
     to_hour = body.end_hour  # user-facing exclusive to-hour, before we decrement
     body.end_hour -= 1  # store the last blocked slot hour (the to-hour is exclusive)
+
+    conflicts = _block_conflicts(db, manager.club_id, body)
+    if conflicts and not body.confirm_block_conflicts:
+        raise HTTPException(status_code=409, detail={
+            "message": "קיימות הזמנות עתידיות במשבצות שברצונך לחסום.",
+            "conflicts": conflicts,
+        })
+
     _delete_rows(db, body.ids, manager.club_id)
     _create_block(db, manager.club_id, body)
     audit.record(

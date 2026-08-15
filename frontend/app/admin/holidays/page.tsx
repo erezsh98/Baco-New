@@ -44,6 +44,8 @@ type FormState = {
 const EMPTY: FormState = { ids: null, block_type: "period", court_number: null, start_date: today(), start_hour: 8, end_date: today(), end_hour: 22 };
 const courtLabel = (c: number | null) => (c == null ? "כל המגרשים" : `מגרש ${c}`);
 
+type Conflict = { date: string; hour: number; court_number: number | null; order_id: number; customer: string };
+
 export default function HolidaysPage() {
   const router = useRouter();
   const [clubName, setClubName] = useState("");
@@ -54,6 +56,7 @@ export default function HolidaysPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [msgOk, setMsgOk] = useState(false);
+  const [pending, setPending] = useState<Conflict[] | null>(null);
 
   useEffect(() => { init(); }, []);
 
@@ -64,7 +67,9 @@ export default function HolidaysPage() {
         api.get("/admin/holidays"),
       ]);
       setClubName(sched.data.club_name || "");
-      setCourts(sched.data.courts || []);
+      // /admin/schedule/courts now returns [{court_number, model}] — normalize to
+      // plain court numbers (still tolerates the old numeric-array shape).
+      setCourts((sched.data.courts || []).map((c: any) => (typeof c === "number" ? c : c.court_number)));
       setBlocks(hol.data);
     } catch (e: any) {
       if (e.response?.status === 403) { router.push("/search"); return; }
@@ -88,24 +93,31 @@ export default function HolidaysPage() {
     setForm({ ...EMPTY });
   }
 
-  async function save() {
+  async function save(confirm = false) {
     setSaving(true); setMsg("");
     const payload = {
       block_type: form.block_type,
       court_number: form.court_number,
       start_date: form.start_date, start_hour: form.start_hour,
       end_date: form.end_date, end_hour: form.end_hour,
+      confirm_block_conflicts: confirm,
     };
     try {
       if (form.ids == null) await api.post("/admin/holidays", payload);
       else await api.put("/admin/holidays", { ...payload, ids: form.ids });
+      setPending(null);
       setMsgOk(true);
       setMsg(form.ids == null ? "החסימה נוספה והזמינות עודכנה" : "החסימה עודכנה והזמינות עודכנה");
       resetForm();
       await reload();
     } catch (e: any) {
-      setMsgOk(false);
-      setMsg(e.response?.data?.detail || "שגיאה בשמירה");
+      const detail = e.response?.data?.detail;
+      if (e.response?.status === 409 && detail?.conflicts) {
+        setPending(detail.conflicts);   // existing bookings in the block → ask the admin
+      } else {
+        setMsgOk(false);
+        setMsg(typeof detail === "string" ? detail : (detail?.message || "שגיאה בשמירה"));
+      }
     } finally {
       setSaving(false);
     }
@@ -194,7 +206,7 @@ export default function HolidaysPage() {
                   </select>
                 </div>
               </div>
-              <button onClick={save} disabled={saving}
+              <button onClick={() => save()} disabled={saving}
                 className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark transition disabled:opacity-50">
                 {saving ? "שומר..." : form.ids == null ? "הוסף" : "עדכן"}
               </button>
@@ -224,7 +236,7 @@ export default function HolidaysPage() {
                   </select>
                 </div>
               </div>
-              <button onClick={save} disabled={saving}
+              <button onClick={() => save()} disabled={saving}
                 className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark transition disabled:opacity-50">
                 {saving ? "שומר..." : form.ids == null ? "הוסף" : "עדכן"}
               </button>
@@ -281,6 +293,46 @@ export default function HolidaysPage() {
           )
         )}
       </div>
+
+      {/* Existing-bookings confirmation before blocking */}
+      {pending && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
+            <h3 className="text-lg font-bold text-ink mb-2">⚠ קיימות הזמנות עתידיות</h3>
+            <p className="text-sm text-muted mb-3">החסימה חלה על משבצות שכבר קיימות בהן הזמנות עתידיות:</p>
+            <div className="max-h-56 overflow-y-auto border rounded-lg mb-3">
+              <table className="w-full text-sm">
+                <thead className="bg-mint text-court-dark">
+                  <tr>
+                    <th className="text-right px-3 py-2">תאריך</th>
+                    <th className="text-right px-3 py-2">שעה</th>
+                    <th className="text-right px-3 py-2">מגרש</th>
+                    <th className="text-right px-3 py-2">לקוח</th>
+                    <th className="text-right px-3 py-2">הזמנה</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pending.map((c, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-3 py-2">{c.date}</td>
+                      <td className="px-3 py-2">{String(c.hour).padStart(2, "0")}:00</td>
+                      <td className="px-3 py-2">{courtLabel(c.court_number)}</td>
+                      <td className="px-3 py-2">{c.customer}</td>
+                      <td className="px-3 py-2">#{c.order_id}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-muted mb-4">ההזמנות הקיימות יישמרו ולא יבוטלו. המשבצות פשוט לא יוצעו יותר להזמנה עתידית.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setPending(null)} className="px-5 py-2 rounded-lg border border-line hover:bg-canvas text-sm">ביטול</button>
+              <button onClick={() => save(true)} disabled={saving}
+                className="px-5 py-2 rounded-lg bg-court text-white hover:bg-court-dark text-sm font-semibold disabled:opacity-50">המשך בכל זאת</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

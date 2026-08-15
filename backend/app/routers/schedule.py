@@ -230,7 +230,10 @@ def get_court(court_number: int, db: Session = Depends(get_db), manager: ClubMan
     model = _model_of(active)
     today = date.today()
 
-    base = {"club_name": club.club_name if club else "", "court_number": court_number, "model": model}
+    # Court-level surface (same across all the court's active templates).
+    surface = next((t.surface_type for t in active if t.surface_type), None)
+    base = {"club_name": club.club_name if club else "", "court_number": court_number,
+            "model": model, "surface_type": surface}
 
     if model == "auto":
         renew = [t for t in active if _is_renew_end(t.end_effective_date)]
@@ -284,6 +287,9 @@ class MatrixCell(BaseModel):
     minutes_offset: int = 0   # slot starts this many minutes after the hour (0/15/30/45)
 
 
+SURFACE_TYPES = {"קשה", "חימר", "דשא"}   # allowed court surfaces (fixed dropdown)
+
+
 class MatrixSave(BaseModel):
     court_number: int
     model: str = "auto"               # "auto" (renew) | "period"
@@ -292,6 +298,7 @@ class MatrixSave(BaseModel):
     orig_start: date | None = None    # period edit: identifies the period being replaced
     orig_end: date | None = None
     price_mode: str = "same"
+    surface_type: str | None = None   # court-level surface: קשה / חימר / דשא (or none)
     cells: list[MatrixCell]
     confirm_block_conflicts: bool = False
 
@@ -315,6 +322,8 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
             raise HTTPException(status_code=400, detail=f"שעה לא תקינה: {c.hour}")
         if c.minutes_offset not in ALLOWED_OFFSETS:
             raise HTTPException(status_code=400, detail=f"היסט דקות לא תקין: {c.minutes_offset}")
+    if payload.surface_type and payload.surface_type not in SURFACE_TYPES:
+        raise HTTPException(status_code=400, detail=f"סוג משטח לא תקין: {payload.surface_type}")
 
     active = _active_templates(db, manager.club_id, payload.court_number)
     current_model = _model_of(active)
@@ -395,7 +404,8 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
     # ---- Apply: deactivate old set(s), create the new set. ----
     proto = (to_deactivate or active or [None])[0]
     for_member = proto.for_member if proto else None
-    surface_type = proto.surface_type if proto else None
+    # Surface is court-level: use the chosen value; if none sent, keep the current one.
+    surface_type = payload.surface_type if payload.surface_type else (proto.surface_type if proto else None)
     for t in to_deactivate:
         t.is_active = "N"
 
@@ -417,6 +427,15 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
             surface_type=surface_type,
         ))
     created = len(merged)
+
+    # Keep the surface consistent across the whole court (all its active
+    # templates / other periods), since it's a court-level property.
+    db.flush()
+    db.query(RentalTemplate).filter(
+        RentalTemplate.club_id == manager.club_id,
+        RentalTemplate.court_number == payload.court_number,
+        RentalTemplate.is_active == "Y",
+    ).update({"surface_type": surface_type}, synchronize_session=False)
 
     club_name = manager.club.club_name if manager.club else None
     model_label = "קבוע" if target_model == "auto" else "משתנה לפי תקופה"

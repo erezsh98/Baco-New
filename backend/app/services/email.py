@@ -193,6 +193,42 @@ def send_cancellation_email(order, is_user: bool) -> bool:
         return False
 
 
+def send_refund_request(order, reason: str) -> bool:
+    """User-initiated refund (זיכוי) request for a past order -> club email.
+    Includes the order details, the reason, and the user's contact info. Does not
+    change the order — the club acts on it."""
+    try:
+        user = order.user
+        slot = order.slot
+        tmpl = slot.rental_template
+        club = tmpl.club
+        offset = tmpl.minutes_offset or 0
+        z = _zero_offset(offset)
+        paid_by = "כרטיסייה" if order.customer_ticket_id else "כרטיס אשראי"
+        reason_safe = (reason or "").replace("<", "&lt;").replace(">", "&gt;")
+        html = (
+            "<p align='right'>בקשת זיכוי מלקוח</p><br>"
+            + _p(f"מועדון: {club.club_name}")
+            + _p(f"לתאריך: {slot.curdate}")
+            + _p(f"מספר מגרש: {tmpl.court_number}")
+            + _p(f"משעה: {slot.hour}:{z}{offset}")
+            + _p(f"עד שעה: {slot.hour + 1}:{z}{offset}")
+            + _p(f"מספר אישור: {order.order_id}")
+            + _p(f"סכום: {order.amount}")
+            + _p(f"אמצעי תשלום: {paid_by}")
+            + _p(f"שם מזמין: {user.first_name} {user.last_name}")
+            + _p(f"טלפון: {user.phone_number or ''}")
+            + _p(f"אימייל: {user.username}") + "<br>"
+            + _p(f"סיבת הבקשה: {reason_safe}") + "<br>"
+            + _p("צוות באקו")
+        )
+        subject = "בקשת זיכוי - הזמנה " + str(order.order_id)
+        return send_email(club.email, subject, html)
+    except Exception as exc:
+        logger.error("refund-request email build failed for order %s: %s", getattr(order, "id", "?"), exc)
+        return False
+
+
 def send_add_to_group_email(user, club, end_date: date, ticket_type: str) -> bool:
     """User added to a club group — ClubCustomerPermittedTicketController.sendAddUserToGroupdEmail."""
     try:
