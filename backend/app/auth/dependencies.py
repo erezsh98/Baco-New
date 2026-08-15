@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -62,11 +62,24 @@ def require_admin(current_user: User = Depends(get_current_user), db: Session = 
 
 
 def require_club_manager(
-    current_user: User = Depends(require_admin), db: Session = Depends(get_db)
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    x_club_id: int | None = Header(default=None, alias="X-Club-Id"),
 ) -> ClubManager:
-    """A user who is both ROLE_ADMIN and listed in club_managers. Returns their
-    ClubManager row so endpoints can scope to `manager.club_id`."""
-    manager = db.query(ClubManager).filter(ClubManager.user_id == current_user.id).first()
-    if not manager:
+    """
+    A user who is ROLE_ADMIN and listed in club_managers. Returns the ClubManager
+    row for the ACTIVE club, so endpoints can keep scoping to `manager.club_id`.
+
+    A manager may manage several clubs; the frontend picks one via the X-Club-Id
+    header. With no header (e.g. single-club managers) the first managed club is
+    used. A header naming a club the user does not manage is rejected (403).
+    """
+    managed = db.query(ClubManager).filter(ClubManager.user_id == current_user.id).all()
+    if not managed:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a club manager")
-    return manager
+    if x_club_id is not None:
+        chosen = next((m for m in managed if m.club_id == x_club_id), None)
+        if chosen is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a manager of this club")
+        return chosen
+    return managed[0]

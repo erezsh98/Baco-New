@@ -4,6 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { User, ChevronDown } from "lucide-react";
 import api from "@/lib/api";
+import ClubSwitcher from "@/components/ClubSwitcher";
 
 export default function Navbar() {
   const router = useRouter();
@@ -85,6 +86,7 @@ export default function Navbar() {
                   </button>
                   {adminOpen && (
                     <div className="flex flex-col z-50 pr-3 sm:pr-0 sm:absolute sm:top-9 sm:right-0 sm:min-w-[180px] sm:bg-surface sm:rounded-xl sm:shadow-card sm:border sm:border-line sm:py-1.5">
+                      <ClubSwitcher />
                       <Link href="/admin" onClick={closeMenus} className={itemCls}>ניהול הזמנות</Link>
                       <Link href="/admin/schedule" onClick={closeMenus} className={itemCls}>עריכת לוח זמנים</Link>
                       <Link href="/admin/holidays" onClick={closeMenus} className={itemCls}>ימי חג / סגירה</Link>

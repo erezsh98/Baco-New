@@ -6,7 +6,7 @@ those clubs' entries; a pure admin (manages no club) sees everything.
 """
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_admin
@@ -27,13 +27,18 @@ def list_audit(
     limit: int = Query(500, ge=1, le=2000),
     db: Session = Depends(get_db),
     admin: User = Depends(require_admin),
+    x_club_id: int | None = Header(default=None, alias="X-Club-Id"),
 ):
     managed = [m.club_id for m in db.query(ClubManager).filter(ClubManager.user_id == admin.id).all()]
 
     q = db.query(AuditLog)
-    # Club managers are scoped to their own club(s); a pure admin sees all.
+    # Club managers are scoped to their club(s); the active club (X-Club-Id) narrows
+    # to one when set. A pure admin (manages nothing) sees everything.
     if managed:
-        q = q.filter(AuditLog.club_id.in_(managed))
+        if x_club_id is not None and x_club_id in managed:
+            q = q.filter(AuditLog.club_id == x_club_id)
+        else:
+            q = q.filter(AuditLog.club_id.in_(managed))
     if from_date:
         q = q.filter(AuditLog.created_at >= datetime.combine(from_date, datetime.min.time()))
     if to_date:

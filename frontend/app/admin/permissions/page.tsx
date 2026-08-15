@@ -24,7 +24,16 @@ export default function PermissionsPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    api.get("/clubs").then(r => setClubs(r.data)).catch(() => router.push("/search"));
+    // Only clubs this manager manages (was /clubs = all clubs). Default to the
+    // active club so it stays in sync with the navbar club switcher.
+    api.get("/admin/my-clubs").then(r => {
+      const cs: Club[] = r.data || [];
+      setClubs(cs);
+      if (cs.length === 0) return;
+      const stored = localStorage.getItem("active_club_id");
+      const valid = stored && cs.some(c => String(c.id) === stored);
+      setSelectedClub(valid ? Number(stored) : cs[0].id);
+    }).catch(() => router.push("/search"));
   }, []);
 
   useEffect(() => {
@@ -73,17 +82,10 @@ export default function PermissionsPage() {
     <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-ink">ניהול הרשאות מועדון</h1>
+          <h1 className="text-2xl font-bold text-ink">
+            ניהול הרשאות מועדון{clubs.find(c => c.id === selectedClub)?.club_name ? ` - ${clubs.find(c => c.id === selectedClub)!.club_name}` : ""}
+          </h1>
           <Link href="/admin" className="text-sm text-court hover:underline">ניהול הזמנות</Link>
-        </div>
-
-        <div className="bg-white rounded-xl shadow p-4 mb-4">
-          <label className="block text-sm font-medium text-ink mb-1">בחר מועדון</label>
-          <select value={selectedClub ?? ""} onChange={e => setSelectedClub(Number(e.target.value))}
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-            <option value="">בחר מועדון...</option>
-            {clubs.map(c => <option key={c.id} value={c.id}>{c.club_name}</option>)}
-          </select>
         </div>
 
         {selectedClub && (

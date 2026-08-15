@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import require_admin
+from app.auth.dependencies import require_admin, require_club_manager
 from app.database import get_db
 from app.models.club import Club, ClubManager
 from app.models.ticket import ClubCustomerPermittedTicket
@@ -24,6 +24,21 @@ def _order_club(order):
     return (club.id if club else None, club.club_name if club else None)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _require_manages(db: Session, user_id: int, club_id: int) -> None:
+    """Guard: the acting admin must manage this specific club."""
+    if not db.query(ClubManager).filter(
+        ClubManager.user_id == user_id, ClubManager.club_id == club_id
+    ).first():
+        raise HTTPException(status_code=403, detail="Not a manager of this club")
+
+
+@router.get("/my-clubs")
+def my_clubs(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Clubs the current manager manages (for the club switcher)."""
+    rows = db.query(ClubManager).filter(ClubManager.user_id == admin.id).all()
+    return [{"id": m.club.id, "club_name": m.club.club_name} for m in rows if m.club]
 
 
 class OrderOut(BaseModel):
@@ -46,15 +61,12 @@ def club_orders(
     to_date: date | None = None,
     date: date | None = None,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_admin),
+    manager: ClubManager = Depends(require_club_manager),
 ):
     if date and not from_date:
         from_date = date
     if date and not to_date:
         to_date = date
-    manager = db.query(ClubManager).filter(ClubManager.user_id == admin.id).first()
-    if not manager:
-        raise HTTPException(status_code=403, detail="Not a club manager")
 
     query = (
         db.query(CourtOrder)
@@ -144,6 +156,7 @@ def get_club_groups(club_id: int, db: Session = Depends(get_db), admin: User = D
     Groups a user can be assigned to: the club's ClubTickets, excluding the
     special '0' and credit ('זיכוי') types. Mirrors the old group dropdown.
     """
+    _require_manages(db, admin.id, club_id)
     from app.models.ticket import ClubTicket
     tickets = db.query(ClubTicket).filter(
         ClubTicket.club_id == club_id,
@@ -158,6 +171,7 @@ def get_club_groups(club_id: int, db: Session = Depends(get_db), admin: User = D
 
 @router.get("/clubs/{club_id}/users")
 def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    _require_manages(db, admin.id, club_id)
     from app.models.ticket import ClubTicket
     permits = db.query(ClubCustomerPermittedTicket).filter(
         ClubCustomerPermittedTicket.club_id == club_id
@@ -199,6 +213,7 @@ def add_club_user(club_id: int, body: AddUserBody, db: Session = Depends(get_db)
     reject duplicate active memberships, then create the permission. If the
     group is a subscription (מנוי), also grant an unlimited subscription ticket.
     """
+    _require_manages(db, admin.id, club_id)
     from app.models.ticket import ClubTicket, CustomerTicket
 
     group = db.query(ClubTicket).filter(ClubTicket.id == body.group_id, ClubTicket.club_id == club_id).first()
@@ -276,6 +291,7 @@ def remove_permission(permit_id: int, db: Session = Depends(get_db), admin: User
     p = db.query(ClubCustomerPermittedTicket).filter(ClubCustomerPermittedTicket.id == permit_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Not found")
+    _require_manages(db, admin.id, p.club_id)
     u = p.user
     club = db.query(Club).filter(Club.id == p.club_id).first()
     who = f"{u.first_name} {u.last_name}" if u else f"#{p.user_id}"

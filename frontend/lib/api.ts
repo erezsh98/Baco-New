@@ -5,9 +5,12 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("access_token");
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    // Active club for multi-club managers; backend defaults to the first when absent.
+    const clubId = localStorage.getItem("active_club_id");
+    if (clubId) config.headers["X-Club-Id"] = clubId;
   }
   return config;
 });

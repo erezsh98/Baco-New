@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
+import { useActiveClubName } from "@/lib/useActiveClubName";
 
 type Row = {
   id: number;
@@ -41,6 +42,7 @@ function fmtDate(iso: string | null): string {
 
 export default function AuditPage() {
   const router = useRouter();
+  const clubName = useActiveClubName();
   const [rows, setRows] = useState<Row[]>([]);
   const [scopedClubs, setScopedClubs] = useState<number[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,7 +87,7 @@ export default function AuditPage() {
     <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-ink">יומן פעולות מנהלים</h1>
+          <h1 className="text-2xl font-bold text-ink">יומן פעולות מנהלים{clubName ? ` - ${clubName}` : ""}</h1>
           <Link href="/admin" className="text-sm text-court hover:underline">חזרה לניהול</Link>
         </div>
 

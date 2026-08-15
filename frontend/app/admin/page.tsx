@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Download } from "lucide-react";
 import api from "@/lib/api";
+import { useActiveClubName } from "@/lib/useActiveClubName";
 
 type Order = {
   id: number; user_name: string; user_phone: string;
@@ -20,6 +21,7 @@ function isoDaysAgo(days: number) {
 
 export default function AdminPage() {
   const router = useRouter();
+  const clubName = useActiveClubName();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [fromDate, setFromDate] = useState(isoDaysAgo(30));
@@ -101,7 +103,7 @@ export default function AdminPage() {
     <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-ink">ניהול הזמנות</h1>
+          <h1 className="text-2xl font-bold text-ink">ניהול הזמנות{clubName ? ` - ${clubName}` : ""}</h1>
           <div className="flex gap-4">
             <Link href="/admin/schedule" className="text-sm text-court hover:underline">עריכת לוח זמנים</Link>
             <Link href="/admin/permissions" className="text-sm text-court hover:underline">ניהול הרשאות</Link>
