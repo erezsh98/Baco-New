@@ -23,6 +23,10 @@ export default function PermissionsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [view, setView] = useState<"add" | "report">("add");
+  const [filterUser, setFilterUser] = useState("");
+  const [filterGroup, setFilterGroup] = useState("");
+
   useEffect(() => {
     // Only clubs this manager manages (was /clubs = all clubs). Default to the
     // active club so it stays in sync with the navbar club switcher.
@@ -90,61 +94,126 @@ export default function PermissionsPage() {
 
         {selectedClub && (
           <>
-            <div className="bg-white rounded-xl shadow p-4 mb-4">
-              <h2 className="font-semibold text-ink mb-3">הוספת משתמש לקבוצה</h2>
-              <form onSubmit={addUser} className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-ink mb-1">אימייל או טלפון</label>
-                  <input value={form.email_or_phone} required
-                    onChange={e => setForm({ ...form, email_or_phone: e.target.value })}
-                    placeholder="example@mail.com או 0501234567"
-                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-ink mb-1">קבוצה</label>
-                  <select value={form.group_id} required
-                    onChange={e => setForm({ ...form, group_id: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-                    <option value="">בחר קבוצה...</option>
-                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-ink mb-1">תאריך סיום</label>
-                  <input type="date" value={form.end_date} required
-                    onChange={e => setForm({ ...form, end_date: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-                </div>
-
-                {error && <p className="text-red-600 text-sm">{error}</p>}
-                {success && <p className="text-court text-sm">{success}</p>}
-
-                <button type="submit" disabled={loading}
-                  className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark disabled:opacity-50">
-                  {loading ? "מוסיף..." : "צרף לקבוצה"}
-                </button>
-              </form>
+            {/* action tabs */}
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => { setView("add"); setError(""); }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition ${view === "add" ? "border-court bg-mint text-court-dark" : "border-line text-muted hover:bg-mint"}`}>
+                הוספת משתמש לקבוצה
+              </button>
+              <button onClick={() => { setView("report"); setError(""); }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition ${view === "report" ? "border-court bg-mint text-court-dark" : "border-line text-muted hover:bg-mint"}`}>
+                דוח הרשאות
+              </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow p-4">
-              <h2 className="font-semibold text-ink mb-3">משתמשים מורשים ({permits.length})</h2>
-              {permits.length === 0 && <p className="text-sm text-muted">אין משתמשים מורשים</p>}
-              <div className="space-y-2">
-                {permits.map(p => (
-                  <div key={p.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="text-sm font-medium">{p.user_name}</p>
-                      <p className="text-xs text-muted">{p.email} | {p.phone}</p>
-                      <p className="text-xs text-court">קבוצה: {p.group} | בתוקף עד: {p.end_date || "—"}</p>
-                    </div>
-                    <button onClick={() => removePermit(p.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600">
-                      הסר
-                    </button>
+            {view === "add" && (
+              <div className="bg-white rounded-xl shadow p-4">
+                <h2 className="font-semibold text-ink mb-3">הוספת משתמש לקבוצה</h2>
+                <form onSubmit={addUser} className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-ink mb-1">אימייל או טלפון</label>
+                    <input value={form.email_or_phone} required
+                      onChange={e => setForm({ ...form, email_or_phone: e.target.value })}
+                      placeholder="example@mail.com או 0501234567"
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
                   </div>
-                ))}
+                  <div>
+                    <label className="block text-sm font-medium text-ink mb-1">קבוצה</label>
+                    <select value={form.group_id} required
+                      onChange={e => setForm({ ...form, group_id: e.target.value })}
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
+                      <option value="">בחר קבוצה...</option>
+                      {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-ink mb-1">תאריך סיום</label>
+                    <input type="date" value={form.end_date} required
+                      onChange={e => setForm({ ...form, end_date: e.target.value })}
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+                  </div>
+
+                  {error && <p className="text-red-600 text-sm">{error}</p>}
+                  {success && <p className="text-court text-sm">{success}</p>}
+
+                  <button type="submit" disabled={loading}
+                    className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark disabled:opacity-50">
+                    {loading ? "מוסיף..." : "צרף לקבוצה"}
+                  </button>
+                </form>
               </div>
-            </div>
+            )}
+
+            {view === "report" && (() => {
+              const groupNames = Array.from(new Set(permits.map(p => p.group).filter(Boolean))).sort();
+              const u = filterUser.trim().toLowerCase();
+              const shown = permits.filter(p => {
+                const matchUser = !u || (p.email || "").toLowerCase().includes(u) || (p.phone || "").includes(filterUser.trim());
+                const matchGroup = !filterGroup || p.group === filterGroup;
+                return matchUser && matchGroup;
+              });
+              return (
+                <div className="bg-white rounded-xl shadow p-4">
+                  <h2 className="font-semibold text-ink mb-3">דוח הרשאות</h2>
+
+                  {/* filters */}
+                  <div className="flex flex-wrap gap-4 items-end mb-4">
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="block text-sm font-medium text-ink mb-1">אימייל או טלפון</label>
+                      <input value={filterUser} onChange={e => setFilterUser(e.target.value)}
+                        placeholder="סינון לפי משתמש..."
+                        className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+                    </div>
+                    <div className="min-w-[160px]">
+                      <label className="block text-sm font-medium text-ink mb-1">קבוצה</label>
+                      <select value={filterGroup} onChange={e => setFilterGroup(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
+                        <option value="">כל הקבוצות</option>
+                        {groupNames.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </div>
+                    {(filterUser || filterGroup) && (
+                      <button onClick={() => { setFilterUser(""); setFilterGroup(""); }}
+                        className="text-sm text-court hover:underline pb-2">נקה סינון</button>
+                    )}
+                  </div>
+
+                  {shown.length === 0 ? (
+                    <p className="text-sm text-muted">לא נמצאו הרשאות{(filterUser || filterGroup) ? " התואמות לסינון" : ""}.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="text-muted border-b">
+                          <tr>
+                            <th className="text-right py-2 px-2">משתמש</th>
+                            <th className="text-right py-2 px-2">אימייל</th>
+                            <th className="text-right py-2 px-2">טלפון</th>
+                            <th className="text-right py-2 px-2">קבוצה</th>
+                            <th className="text-right py-2 px-2">בתוקף עד</th>
+                            <th className="py-2 px-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {shown.map(p => (
+                            <tr key={p.id} className="border-b last:border-0">
+                              <td className="py-2 px-2 whitespace-nowrap">{p.user_name}</td>
+                              <td className="py-2 px-2">{p.email}</td>
+                              <td className="py-2 px-2 whitespace-nowrap">{p.phone || "—"}</td>
+                              <td className="py-2 px-2 whitespace-nowrap">{p.group}</td>
+                              <td className="py-2 px-2 whitespace-nowrap">{p.end_date || "—"}</td>
+                              <td className="py-2 px-2 text-left">
+                                <button onClick={() => removePermit(p.id)} className="text-red-600 hover:underline">הסר</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="text-xs text-muted mt-3">{shown.length} מתוך {permits.length} הרשאות</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </>
         )}
       </div>

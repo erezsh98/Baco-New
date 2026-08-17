@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import ChatWidget from "@/components/agent/ChatWidget";
 
+const RESULTS_PER_PAGE = 15;
+
 type Area = { id: number; description: string };
 type Club = { id: number; club_name: string };
 type Slot = {
@@ -23,6 +25,7 @@ export default function SearchPage() {
     from_date: "", to_date: "", from_hour: "", to_hour: "", area_id: "", club_id: "",
   });
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [page, setPage] = useState(0);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -57,7 +60,11 @@ export default function SearchPage() {
   }, [form.area_id]);
 
   function handle(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    // Single date field: keep to_date synced to from_date, otherwise changing the
+    // date leaves a stale earlier to_date → from_date > to_date → empty range.
+    if (name === "from_date") setForm(f => ({ ...f, from_date: value, to_date: value }));
+    else setForm(f => ({ ...f, [name]: value }));
   }
 
   async function runSearch(f: typeof form) {
@@ -72,6 +79,7 @@ export default function SearchPage() {
       if (f.club_id) params.set("club_id", f.club_id);
       const res = await api.get(`/courts/search?${params}`);
       setSlots(res.data);
+      setPage(0);
       setSearched(true);
     } catch {
       setError("שגיאה בחיפוש. אנא נסה שוב.");
@@ -99,6 +107,10 @@ export default function SearchPage() {
   }
 
   const today = new Date().toISOString().split("T")[0];
+
+  const totalPages = Math.max(1, Math.ceil(slots.length / RESULTS_PER_PAGE));
+  const curPage = Math.min(page, totalPages - 1);
+  const pageSlots = slots.slice(curPage * RESULTS_PER_PAGE, curPage * RESULTS_PER_PAGE + RESULTS_PER_PAGE);
 
   return (
     <main className="min-h-screen bg-mint p-4">
@@ -162,17 +174,19 @@ export default function SearchPage() {
                   <th className="px-4 py-3 text-right">תאריך</th>
                   <th className="px-4 py-3 text-right">שעה</th>
                   <th className="px-4 py-3 text-right">מגרש</th>
+                  <th className="px-4 py-3 text-right">משטח</th>
                   <th className="px-4 py-3 text-right">מחיר</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
-                {slots.map((s, i) => (
+                {pageSlots.map((s, i) => (
                   <tr key={s.id} className={i % 2 === 0 ? "bg-white" : "bg-mint"}>
                     <td className="px-4 py-3">{s.club_name}</td>
                     <td className="px-4 py-3">{s.date}</td>
                     <td className="px-4 py-3">{s.hour}:{String(s.minutes_offset).padStart(2, "0")}</td>
                     <td className="px-4 py-3">מגרש {s.court_number}</td>
+                    <td className="px-4 py-3">{s.surface_type || "—"}</td>
                     <td className="px-4 py-3">
                       {s.covered_by_subscription ? (
                         <span className="font-bold text-court">כלול במנוי</span>
@@ -192,6 +206,16 @@ export default function SearchPage() {
                 ))}
               </tbody>
             </table>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 py-3 text-sm border-t border-line">
+                <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={curPage === 0}
+                  className="px-3 py-1 rounded-lg border border-line hover:bg-mint disabled:opacity-40 disabled:cursor-not-allowed">‹ הקודם</button>
+                <span className="text-muted">עמוד {curPage + 1} מתוך {totalPages} ({slots.length} תוצאות)</span>
+                <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={curPage >= totalPages - 1}
+                  className="px-3 py-1 rounded-lg border border-line hover:bg-mint disabled:opacity-40 disabled:cursor-not-allowed">הבא ›</button>
+              </div>
+            )}
           </div>
         )}
       </div>

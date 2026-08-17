@@ -7,6 +7,8 @@ from app.models.misc import Contact
 
 router = APIRouter(prefix="/contact", tags=["contact"])
 
+CONTACT_RECIPIENT = "servicebaco@gmail.com"   # all צור קשר messages go here
+
 
 class ContactIn(BaseModel):
     name: str
@@ -27,11 +29,8 @@ def submit_contact(data: ContactIn, db: Session = Depends(get_db)):
     db.add(c)
     db.commit()
 
-    # Mirror ContactController.save: email the club (fall back to the system
-    # address when the form has no club attached).
-    from app.config import settings
+    # Contact-us messages go to the BACO service inbox.
     from app.services.email import send_contact_email
-    club_email = c.club.email if (c.club and c.club.email) else settings.email_from
-    send_contact_email(c, club_email)
+    send_contact_email(c, CONTACT_RECIPIENT)
 
     return {"message": "Sent"}

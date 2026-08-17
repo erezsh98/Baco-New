@@ -1,5 +1,5 @@
 import random
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -72,6 +72,21 @@ def _refund_eligible(order: CourtOrder) -> bool:
     return ticket_type != SUBSCRIPTION_TYPE
 
 
+def _cancel_deadline(order: CourtOrder) -> datetime | None:
+    """
+    Latest moment the user may cancel, per the club's policy
+    (club.min_hour_for_cancel hours before the booking start). None = no policy
+    configured → cancellable any time.
+    """
+    slot = order.slot
+    tmpl = slot.rental_template if slot else None
+    club = tmpl.club if tmpl else None
+    if not slot or not club or not club.min_hour_for_cancel:
+        return None
+    booking_dt = datetime.combine(slot.curdate, time(hour=slot.hour, minute=(tmpl.minutes_offset or 0)))
+    return booking_dt - timedelta(hours=club.min_hour_for_cancel)
+
+
 class BookingOut(BaseModel):
     id: int
     order_id: int
@@ -83,6 +98,7 @@ class BookingOut(BaseModel):
     amount: float | None
     is_final: str | None
     refund_eligible: bool = False
+    cancel_until: datetime | None = None   # latest time to cancel (club policy); null = anytime
 
     class Config:
         from_attributes = True
@@ -149,6 +165,7 @@ def _booking_out(order: CourtOrder) -> BookingOut:
         amount=order.amount,
         is_final=order.is_final,
         refund_eligible=_refund_eligible(order),
+        cancel_until=_cancel_deadline(order),
     )
 
 
@@ -314,6 +331,15 @@ def cancel_booking_post(order_id: int, db: Session = Depends(get_db), current_us
     ).first()
     if not order:
         raise HTTPException(status_code=404, detail="Booking not found")
+
+    # Enforce the club's cancellation policy (matches the deadline shown in the UI).
+    deadline = _cancel_deadline(order)
+    if deadline and datetime.now() > deadline:
+        raise HTTPException(
+            status_code=400,
+            detail=f"עבר המועד האחרון לביטול הזמנה זו ({deadline:%d/%m/%Y %H:%M}).",
+        )
+
     slot = order.slot
     from app.services.email import send_cancellation_email
     send_cancellation_email(order, is_user=True)   # to the user: "ביטול הזמנה"

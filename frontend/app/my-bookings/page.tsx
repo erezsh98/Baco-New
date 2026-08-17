@@ -6,8 +6,15 @@ import api from "@/lib/api";
 type Booking = {
   id: number; club_name: string; court_number: number;
   date: string; hour: number; minutes_offset: number;
-  amount: number | null;
+  amount: number | null; cancel_until: string | null;
 };
+
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 export default function MyBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -71,10 +78,24 @@ export default function MyBookingsPage() {
                 <p className="text-sm text-muted">{b.date} | שעה {String(b.hour).padStart(2, "0")}:{String(b.minutes_offset ?? 0).padStart(2, "0")}</p>
                 <p className="text-sm text-court font-medium">₪{b.amount}</p>
               </div>
-              <button onClick={() => cancel(b.id)} disabled={cancelId === b.id}
-                className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600 transition disabled:opacity-50">
-                {cancelId === b.id ? "מבטל..." : "ביטול"}
-              </button>
+              {(() => {
+                const passed = !!b.cancel_until && new Date(b.cancel_until).getTime() < Date.now();
+                return (
+                  <div className="text-left shrink-0">
+                    <button onClick={() => cancel(b.id)} disabled={cancelId === b.id || passed}
+                      className="bg-red-500 text-white px-3 py-1 rounded-lg text-sm hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                      {cancelId === b.id ? "מבטל..." : "ביטול"}
+                    </button>
+                    {b.cancel_until ? (
+                      <p className={`text-xs mt-1 ${passed ? "text-red-600" : "text-muted"}`}>
+                        {passed ? "עבר המועד לביטול" : `ניתן לבטל עד ${fmtDateTime(b.cancel_until)}`}
+                      </p>
+                    ) : (
+                      <p className="text-xs mt-1 text-muted">ניתן לבטל בכל עת</p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>
