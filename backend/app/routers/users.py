@@ -18,6 +18,7 @@ class UserOut(BaseModel):
     phone_number: str | None
     roles: list[str] = []
     is_admin: bool = False
+    is_super_admin: bool = False
 
     class Config:
         from_attributes = True
@@ -47,6 +48,7 @@ def _user_out(user: User, db: Session) -> UserOut:
         phone_number=user.phone_number,
         roles=role_names,
         is_admin="ROLE_ADMIN" in role_names,
+        is_super_admin="ROLE_SUPER_ADMIN" in role_names,
     )
 
 

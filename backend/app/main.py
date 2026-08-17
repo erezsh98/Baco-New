@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, bookings, clubs, contact, courts, payment, tickets, users, admin, schedule, holidays, audit
+from app.routers import auth, bookings, clubs, contact, courts, payment, tickets, users, admin, schedule, holidays, audit, super_admin
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
@@ -35,6 +35,7 @@ app.include_router(admin.router)
 app.include_router(schedule.router)
 app.include_router(holidays.router)
 app.include_router(audit.router)
+app.include_router(super_admin.router)
 app.include_router(contact.router)
 
 

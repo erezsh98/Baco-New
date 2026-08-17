@@ -49,15 +49,30 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
-def require_admin(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
-    is_admin = (
+SUPER_ADMIN_ROLE = "ROLE_SUPER_ADMIN"
+
+
+def has_role(db: Session, user_id: int, authority: str) -> bool:
+    return (
         db.query(UserRole)
         .join(Role)
-        .filter(UserRole.user_id == current_user.id, Role.authority == "ROLE_ADMIN")
+        .filter(UserRole.user_id == user_id, Role.authority == authority)
         .first()
+        is not None
     )
-    if not is_admin:
+
+
+def require_admin(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+    if not has_role(db, current_user.id, "ROLE_ADMIN"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
+
+
+def require_super_admin(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
+    """The single system super-user. Not club-scoped; manages clubs, managers and
+    club tickets/groups across all clubs. Independent of ROLE_ADMIN."""
+    if not has_role(db, current_user.id, SUPER_ADMIN_ROLE):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Super admin access required")
     return current_user
 
 

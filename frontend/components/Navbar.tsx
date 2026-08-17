@@ -11,9 +11,11 @@ export default function Navbar() {
   const pathname = usePathname();
   const [loggedIn, setLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuper, setIsSuper] = useState(false);
   const [userName, setUserName] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [superOpen, setSuperOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
 
   useEffect(() => {
@@ -26,11 +28,13 @@ export default function Navbar() {
       api.get("/users/me")
         .then(r => {
           setIsAdmin(!!r.data.is_admin);
+          setIsSuper(!!r.data.is_super_admin);
           setUserName(r.data.first_name || r.data.username || "החשבון שלי");
         })
-        .catch(() => { setIsAdmin(false); setUserName(""); });
+        .catch(() => { setIsAdmin(false); setIsSuper(false); setUserName(""); });
     } else {
       setIsAdmin(false);
+      setIsSuper(false);
       setUserName("");
     }
   }, [pathname]);
@@ -38,6 +42,7 @@ export default function Navbar() {
   function closeMenus() {
     setMenuOpen(false);
     setAdminOpen(false);
+    setSuperOpen(false);
     setUserOpen(false);
   }
 
@@ -45,6 +50,7 @@ export default function Navbar() {
     closeMenus();
     localStorage.removeItem("access_token");
     setIsAdmin(false);
+    setIsSuper(false);
     setUserName("");
     router.push("/login");
   }
@@ -75,10 +81,29 @@ export default function Navbar() {
             <>
               <Link href="/contact" onClick={closeMenus} className={linkCls}>צור קשר</Link>
 
+              {isSuper && (
+                <div className="relative">
+                  <button
+                    onClick={() => { setSuperOpen(o => !o); setAdminOpen(false); setUserOpen(false); }}
+                    className="py-1 text-sm font-bold text-court-dark hover:text-court flex items-center gap-1"
+                    aria-expanded={superOpen}
+                  >
+                    ניהול על <ChevronDown size={13} />
+                  </button>
+                  {superOpen && (
+                    <div className="flex flex-col z-50 pr-3 sm:pr-0 sm:absolute sm:top-9 sm:right-0 sm:min-w-[180px] sm:bg-surface sm:rounded-xl sm:shadow-card sm:border sm:border-line sm:py-1.5">
+                      <Link href="/admin/super/clubs" onClick={closeMenus} className={itemCls}>מועדונים</Link>
+                      <Link href="/admin/super/managers" onClick={closeMenus} className={itemCls}>מנהלי מועדון</Link>
+                      <Link href="/admin/super/tickets" onClick={closeMenus} className={itemCls}>כרטיסיות וקבוצות</Link>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {isAdmin && (
                 <div className="relative">
                   <button
-                    onClick={() => { setAdminOpen(o => !o); setUserOpen(false); }}
+                    onClick={() => { setAdminOpen(o => !o); setSuperOpen(false); setUserOpen(false); }}
                     className="py-1 text-sm font-bold text-court-dark hover:text-court flex items-center gap-1"
                     aria-expanded={adminOpen}
                   >
@@ -100,7 +125,7 @@ export default function Navbar() {
               {/* user account dropdown */}
               <div className="relative">
                 <button
-                  onClick={() => { setUserOpen(o => !o); setAdminOpen(false); }}
+                  onClick={() => { setUserOpen(o => !o); setAdminOpen(false); setSuperOpen(false); }}
                   className="flex items-center gap-1.5 py-1 text-sm font-bold text-court-dark hover:text-court"
                   aria-expanded={userOpen}
                 >
