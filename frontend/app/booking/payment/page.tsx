@@ -20,7 +20,7 @@ export default function PaymentPage() {
   const [orderLimit, setOrderLimit] = useState(false);
   const [payMethod, setPayMethod] = useState<"credit" | "ticket">("credit");
   const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
-  const [iframeHtml, setIframeHtml] = useState("");
+  const [iframeUrl, setIframeUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -64,8 +64,12 @@ export default function PaymentPage() {
         router.push("/booking/thank-you");
         return;
       }
-      if (res.data.iframe_html) {
-        setIframeHtml(res.data.iframe_html);
+      if (res.data.iframe_url) {
+        // Remember the booking now: after payment, Pelecard redirects the iframe
+        // to the backend callback, which breaks out to the thank-you page (which
+        // reads last_booking for the confirmation + promotions).
+        rememberBooking();
+        setIframeUrl(res.data.iframe_url);
       } else {
         setError("שגיאה: לא התקבל מסך תשלום. נסו שוב או פנו לתמיכה.");
       }
@@ -108,12 +112,13 @@ export default function PaymentPage() {
 
   if (!slot) return null;
 
-  if (iframeHtml) {
+  if (iframeUrl) {
     return (
       <main className="min-h-screen bg-mint p-4">
         <div className="max-w-xl mx-auto bg-white rounded-2xl shadow p-4">
           <h2 className="text-xl font-bold text-court-dark mb-4 text-center">תשלום בכרטיס אשראי</h2>
-          <div dangerouslySetInnerHTML={{ __html: iframeHtml }} />
+          <iframe src={iframeUrl} title="Pelecard" className="w-full rounded-lg border border-line"
+            style={{ height: 600 }} />
         </div>
       </main>
     );
