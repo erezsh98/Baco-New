@@ -3,8 +3,11 @@ Email delivery — a faithful port of the legacy Grails mailService emails.
 
 Every legacy mail was sent `from servicebaco@gmail.com` with `bcc
 servicebaco@gmail.com`; the exact Hebrew subjects/bodies are reproduced here.
-Transport is SMTP via the smtp_* settings (Gmail). Sending never raises: an
-SMTP failure logs an error but must not break the booking/cancel/etc. flow.
+Transport is SMTP via the smtp_* settings. Production uses Mailgun (the legacy
+system relayed localhost:25 -> Mailgun on the server); direct Mailgun SMTP
+(smtp.mailgun.org:587), Gmail, or a plain local relay all work unchanged.
+Sending never raises: an SMTP failure logs an error but must not break the
+booking/cancel/etc. flow.
 
 Legacy sources (tennisLine/grails-app/controllers):
   - PelecardGoodController.sendEmail            -> send_booking_confirmation_cc
@@ -52,8 +55,11 @@ def send_email(to: str, subject: str, html: str, text: str | None = None, bcc: s
         else:
             smtp = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20)
         with smtp:
-            if settings.smtp_port != 465:
-                smtp.ehlo()
+            smtp.ehlo()
+            # Upgrade to TLS only when the server offers it (Mailgun/Gmail on
+            # 587 do). A plain local relay (production: localhost:25 -> Mailgun,
+            # no auth) doesn't advertise STARTTLS, so skip it instead of failing.
+            if settings.smtp_port != 465 and smtp.has_extn("starttls"):
                 smtp.starttls()
                 smtp.ehlo()
             if settings.smtp_user:

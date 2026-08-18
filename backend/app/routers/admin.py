@@ -102,6 +102,10 @@ def club_orders(
             "status": status,
             "payment_method": "ticket" if o.customer_ticket_id else "credit",
         })
+    # Sort: date desc, hour desc, court number asc. Stable sorts applied least-
+    # significant first (court asc), then the primary keys desc.
+    result.sort(key=lambda r: r["court_number"])
+    result.sort(key=lambda r: (r["date"], r["hour"]), reverse=True)
     return result
 
 
