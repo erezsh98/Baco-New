@@ -41,6 +41,27 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
             tmpl_q = tmpl_q.filter(RentalTemplate.club_id == club_id)
         templates = tmpl_q.all()
 
+        # Physical slots that survived the delete because they carry an order
+        # (a confirmed booking OR a pending-in-cart hold). A schedule edit
+        # deactivates the old template and creates a NEW one with a different
+        # id, so these booked slots now hang off an inactive template. The
+        # generation loop below only checks for an existing slot under the
+        # *new* template id, so without this guard it would create a fresh FREE
+        # slot for the same physical court/date/hour and thereby REOPEN an
+        # already-booked slot. Key on club_id too — court numbers repeat across
+        # clubs.
+        occ_q = (
+            db.query(
+                RentalTemplate.club_id, RentalTemplate.court_number,
+                AvailableCourtSlot.curdate, AvailableCourtSlot.hour,
+            )
+            .join(AvailableCourtSlot, AvailableCourtSlot.rental_template_id == RentalTemplate.id)
+            .filter(AvailableCourtSlot.order_id.isnot(None))
+        )
+        if club_id is not None:
+            occ_q = occ_q.filter(RentalTemplate.club_id == club_id)
+        occupied = {(cid, cn, cd, h) for cid, cn, cd, h in occ_q.all()}
+
         for tmpl in templates:
             club = tmpl.club
             days = [int(d) for d in tmpl.days_str.split(",") if d.strip()]
@@ -70,6 +91,10 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
                 if offset == 0:
                     start_hour = max(start_hour, (club.admin_start_hour or 0) + (club.rental_threshold_hours or 0))
                 for hour in range(start_hour, tmpl.end_hour + 1):  # end_hour inclusive (matches legacy)
+                    # Never reopen a physical slot that is already booked, even
+                    # if that booking hangs off a now-inactive old template.
+                    if (tmpl.club_id, tmpl.court_number, target_date, hour) in occupied:
+                        continue
                     existing = db.query(AvailableCourtSlot).filter(
                         AvailableCourtSlot.rental_template_id == tmpl.id,
                         AvailableCourtSlot.curdate == target_date,
