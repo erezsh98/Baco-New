@@ -200,6 +200,9 @@ def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = De
             "ticket_type": p.ticket_type,
             "end_date": str(p.end_date) if p.end_date else None,
         })
+    # Sort by "בתוקף עד" (end_date) descending; rows with no end date (permanent)
+    # go last. end_date is an ISO string, so lexicographic order == chronological.
+    result.sort(key=lambda r: (r["end_date"] is not None, r["end_date"] or ""), reverse=True)
     return result
 
 
