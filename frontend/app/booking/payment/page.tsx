@@ -11,7 +11,7 @@ type Slot = {
   covered_by_subscription?: boolean;
 };
 
-type Ticket = { id: number; club_ticket_id: number; ticket_name: string; unlimited: boolean; punches_left: number | null };
+type Ticket = { id: number; club_ticket_id: number; ticket_name: string; ticket_type?: string; unlimited: boolean; punches_left: number | null };
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -176,7 +176,7 @@ export default function PaymentPage() {
                 <label key={t.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${selectedTicket === t.id ? "border-court bg-mint" : "border-line"}`}>
                   <input type="radio" name="ticket" value={t.id}
                     checked={selectedTicket === t.id} onChange={() => setSelectedTicket(t.id)} />
-                  <span className="text-sm">{t.ticket_name} — {t.unlimited ? "ללא הגבלה" : `${t.punches_left} כניסות נותרו`}</span>
+                  <span className="text-sm">{t.ticket_type === "מנוי" ? t.ticket_name : `${t.ticket_name} — ${t.unlimited ? "ללא הגבלה" : `${t.punches_left} כניסות נותרו`}`}</span>
                 </label>
               ))}
             </div>

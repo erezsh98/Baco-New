@@ -24,6 +24,7 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 # Matches the old Grails "default date" sentinel (1980-01-01).
 UNPAID_DATE = date(1980, 1, 1)
 SUBSCRIPTION_TYPE = "מנוי"
+CREDIT_TYPE = "זיכוי"          # refund credit — surface these first in the payment picker
 from app.services.pricing import MEMBER_TYPE  # "חבר מועדון" — club-member pricing privilege
 UNLIMITED_PUNCHES = -1000  # ClubTicket.total_num_of_punches sentinel for unlimited
 NO_DAILY_LIMIT = -1        # ClubTicket.max_orders_per_day sentinel for no limit
@@ -215,6 +216,12 @@ def tickets_for_slot(slot_id: int, db: Session = Depends(get_db), current_user: 
         raise HTTPException(status_code=404, detail="Court slot not found")
 
     tickets, allowed = eligible_tickets_for_slot(db, current_user, slot)
+    # Surface זיכוי (refund credit) tickets first so the user spends credit before
+    # a regular כרטיסייה. Stable sort keeps the original order within each group.
+    tickets = sorted(
+        tickets,
+        key=lambda t: (t.club_ticket.ticket_type or "").strip() != CREDIT_TYPE if t.club_ticket else True,
+    )
     result = []
     for t in tickets:
         ct = t.club_ticket
@@ -223,6 +230,7 @@ def tickets_for_slot(slot_id: int, db: Session = Depends(get_db), current_user: 
             "id": t.id,
             "club_ticket_id": t.club_ticket_id,
             "ticket_name": (ct.description if ct else "") or "",
+            "ticket_type": (ct.ticket_type or "").strip() if ct else "",
             "unlimited": unlimited,
             "punches_left": None if unlimited else (t.cur_num_of_punches or 0),
         })
