@@ -1,8 +1,8 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_admin, require_club_manager
@@ -299,11 +299,41 @@ def remove_permission(permit_id: int, db: Session = Depends(get_db), admin: User
     u = p.user
     club = db.query(Club).filter(Club.id == p.club_id).first()
     who = f"{u.first_name} {u.last_name}" if u else f"#{p.user_id}"
+
+    # A subscription (מנוי) membership also granted a CustomerTicket, and THAT row
+    # (not the permission) is what search uses to decide coverage. Deleting only
+    # the permission left the user still covered until the ticket's end_date.
+    # Revoke the matching subscription ticket too: delete it when it was never
+    # used, or expire it (end_date = yesterday) when a past booking references it
+    # (preserves the FK and the booking history).
+    revoked_subs = 0
+    if (p.ticket_type or "").strip() == SUBSCRIPTION_TYPE:
+        from app.models.ticket import ClubTicket, CustomerTicket
+        subs = (
+            db.query(CustomerTicket)
+            .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
+            .filter(
+                CustomerTicket.user_id == p.user_id,
+                ClubTicket.club_id == p.club_id,
+                func.trim(ClubTicket.ticket_type) == SUBSCRIPTION_TYPE,
+            )
+            .all()
+        )
+        yesterday = date.today() - timedelta(days=1)
+        for ct in subs:
+            used = db.query(CourtOrder.id).filter(CourtOrder.customer_ticket_id == ct.id).first()
+            if used:
+                ct.end_date = yesterday
+            else:
+                db.delete(ct)
+            revoked_subs += 1
+
     audit.record(
         db, admin, "permission.revoke",
         f"בוטלה הרשאה '{p.ticket_type}' מ{who}",
         club_id=p.club_id, club_name=(club.club_name if club else None),
-        detail={"permit_id": permit_id, "user_id": p.user_id, "ticket_type": p.ticket_type},
+        detail={"permit_id": permit_id, "user_id": p.user_id, "ticket_type": p.ticket_type,
+                "revoked_subscriptions": revoked_subs},
     )
     db.delete(p)
     db.commit()
