@@ -18,8 +18,8 @@ const PERIODS_PER_PAGE = 10;
 const SURFACES = ["קשה", "חימר", "דשא"];   // court surface types (fixed dropdown)
 
 type Tier = { id: number; color: string; member: number; nonMember: number };
-type Cell = { tier: number; offset: number };
-type Brush = { kind: "tier"; id: number } | { kind: "offset"; value: number } | { kind: "block" };
+type Cell = { tier: number; offset: number; forMember?: boolean };
+type Brush = { kind: "tier"; id: number } | { kind: "offset"; value: number } | { kind: "member"; value: boolean } | { kind: "block" };
 type CourtInfo = { court_number: number; model: "auto" | "period" };
 type Period = { start_date: string; end_date: string; status: "future" | "active" | "ended"; editable: boolean };
 type Conflict = { date: string; hour: number; order_id: number; customer: string };
@@ -142,7 +142,7 @@ export default function SchedulePage() {
         t = { id: idc, color: PALETTE[(idc - 1) % PALETTE.length], member: cell.member_price, nonMember: cell.non_member_price };
         combos.set(key, t); idc++;
       }
-      g[`${cell.day}-${cell.hour}`] = { tier: t.id, offset: cell.minutes_offset ?? 0 };
+      g[`${cell.day}-${cell.hour}`] = { tier: t.id, offset: cell.minutes_offset ?? 0, forMember: !!cell.for_member };
     }
     let arr = [...combos.values()];
     if (arr.length === 0) {   // seed a default tier so the grid is paintable
@@ -266,8 +266,9 @@ export default function SchedulePage() {
       const n = { ...prev };
       const existing = n[key];
       if (brush.kind === "block") delete n[key];
-      else if (brush.kind === "tier") n[key] = { tier: brush.id, offset: existing ? existing.offset : 0 };
-      else if (existing) n[key] = { ...existing, offset: brush.value };
+      else if (brush.kind === "tier") n[key] = { tier: brush.id, offset: existing ? existing.offset : 0, forMember: existing?.forMember };
+      else if (brush.kind === "offset") { if (existing) n[key] = { ...existing, offset: brush.value }; }
+      else if (brush.kind === "member") { if (existing) n[key] = { ...existing, forMember: brush.value }; }
       return n;
     });
   }
@@ -309,7 +310,7 @@ export default function SchedulePage() {
     for (const key in grid) {
       const c = grid[key]; const t = byId.get(c.tier); if (!t) continue;
       const [day, hour] = key.split("-").map(Number);
-      cells.push({ day, hour, member_price: t.member, non_member_price: t.nonMember, minutes_offset: c.offset });
+      cells.push({ day, hour, member_price: t.member, non_member_price: t.nonMember, minutes_offset: c.offset, for_member: !!c.forMember });
     }
     return cells;
   }
@@ -365,6 +366,12 @@ export default function SchedulePage() {
     return tiers.find(t => t.id === c.tier)?.color ?? "#f3f4f6";
   }
   function cellOffset(day: number, hour: number) { return grid[`${day}-${hour}`]?.offset ?? 0; }
+  function cellForMember(day: number, hour: number) { return !!grid[`${day}-${hour}`]?.forMember; }
+  function cellLabel(day: number, hour: number) {
+    const c = grid[`${day}-${hour}`]; if (!c) return "";
+    const off = c.offset > 0 ? String(c.offset) : "";
+    return c.forMember ? (off ? off + "★" : "★") : off;
+  }
 
   const showEditor = model === "auto" || (model === "period" && periodView === "editor");
   const editingExisting = model === "period" && !!origStart;
@@ -466,7 +473,8 @@ export default function SchedulePage() {
               <p className="text-muted text-sm">לא הוגדרו תקופות למגרש זה. לחצו "תקופה חדשה" כדי להתחיל.</p>
             ) : (
               <>
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[420px]">
                   <thead className="text-muted border-b">
                     <tr><th className="text-right py-2">מתאריך</th><th className="text-right py-2">עד תאריך</th><th className="text-right py-2">סטטוס</th><th className="py-2"></th></tr>
                   </thead>
@@ -484,6 +492,7 @@ export default function SchedulePage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
                 {totalPages > 1 && (
                   <div className="flex items-center justify-center gap-4 mt-4 text-sm">
                     <button onClick={() => setPeriodPage(p => Math.max(0, p - 1))} disabled={page === 0}
@@ -527,7 +536,7 @@ export default function SchedulePage() {
                 <p className="text-sm mb-3">
                   כלי פעיל:{" "}
                   <span className="font-bold text-ink">
-                    {brush.kind === "tier" ? "צביעת מחיר (צבע)" : brush.kind === "offset" ? `סימון היסט ${brush.value === 0 ? "00" : ":" + brush.value}` : "חסימה / מחיקה"}
+                    {brush.kind === "tier" ? "צביעת מחיר (צבע)" : brush.kind === "offset" ? `סימון היסט ${brush.value === 0 ? "00" : ":" + brush.value}` : brush.kind === "member" ? (brush.value ? "סימון: למנויים בלבד" : "סימון: פתוח לכולם") : "חסימה / מחיקה"}
                   </span>
                   <span className="text-muted"> — לחץ או גרור על התאים</span>
                 </p>
@@ -566,6 +575,18 @@ export default function SchedulePage() {
                     </label>
                   ))}
                 </div>
+                <div className={`mt-3 flex flex-wrap items-center gap-3 text-sm rounded-lg p-2 ${brush.kind === "member" ? "bg-canvas ring-1 ring-line" : ""}`}>
+                  <span className="font-medium text-ink">זמינות למנויים:</span>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="member" checked={brush.kind === "member" && brush.value === true} onChange={() => setBrush({ kind: "member", value: true })} />
+                    למנויים בלבד ★
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="member" checked={brush.kind === "member" && brush.value === false} onChange={() => setBrush({ kind: "member", value: false })} />
+                    פתוח לכולם
+                  </label>
+                  <span className="text-xs text-muted">בחרו כלי זה ולחצו על תאים צבועים לסימון/ביטול (מסומן ב-★ ובמסגרת צהובה). שעות אלה יוצגו רק למחזיקי מנוי בתוקף.</span>
+                </div>
               </div>
             )}
 
@@ -588,9 +609,9 @@ export default function SchedulePage() {
                             onMouseDown={() => { if (!readOnly) { painting.current = true; applyBrush(d, h); } }}
                             onMouseEnter={() => { if (painting.current) applyBrush(d, h); }}
                             className={readOnly ? "" : "cursor-pointer hover:opacity-80"}
-                            style={{ height: 28, minWidth: 60, background: cellColor(d, h), border: "1px solid #fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}
-                            title={`${DAY_LABELS[d]} ${String(h).padStart(2, "0")}:${String(cellOffset(d, h)).padStart(2, "0")}`}>
-                            {grid[`${d}-${h}`] && cellOffset(d, h) > 0 ? cellOffset(d, h) : ""}
+                            style={{ height: 28, minWidth: 60, background: cellColor(d, h), border: "1px solid #fff", boxShadow: cellForMember(d, h) ? "inset 0 0 0 2px #fde047" : undefined, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}
+                            title={`${DAY_LABELS[d]} ${String(h).padStart(2, "0")}:${String(cellOffset(d, h)).padStart(2, "0")}${cellForMember(d, h) ? " — למנויים בלבד" : ""}`}>
+                            {cellLabel(d, h)}
                           </div>
                         </td>
                       ))}

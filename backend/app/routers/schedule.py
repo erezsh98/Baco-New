@@ -98,18 +98,19 @@ def _open_cells(templates: list[RentalTemplate]) -> set[tuple[int, int]]:
 
 def _matrix_payload(templates: list[RentalTemplate]) -> dict:
     """Expand templates into a per-(day, hour) grid payload."""
-    cells: dict[tuple[int, int], tuple[int, int, int]] = {}
+    cells: dict[tuple[int, int], tuple[int, int, int, bool]] = {}
     all_prices_equal = True
     for t in templates:
         days = [int(x) for x in (t.days_str or "").split(",") if x.strip()]
         m = t.member_price or 0
         nm = t.non_member_price or 0
         off = t.minutes_offset or 0
+        fm = bool(t.for_member and t.for_member.strip())   # subscriber-only cell
         if m != nm:
             all_prices_equal = False
         for d in days:
             for h in range(t.from_hour, t.end_hour + 1):
-                cells[(d, h)] = (m, nm, off)
+                cells[(d, h)] = (m, nm, off, fm)
 
     used_hours = [h for (_, h) in cells]
     return {
@@ -117,8 +118,9 @@ def _matrix_payload(templates: list[RentalTemplate]) -> dict:
         "hour_from": min([DEFAULT_HOUR_FROM] + used_hours),
         "hour_to": max([DEFAULT_HOUR_TO] + used_hours),
         "cells": [
-            {"day": d, "hour": h, "member_price": m, "non_member_price": nm, "minutes_offset": off}
-            for (d, h), (m, nm, off) in sorted(cells.items())
+            {"day": d, "hour": h, "member_price": m, "non_member_price": nm,
+             "minutes_offset": off, "for_member": fm}
+            for (d, h), (m, nm, off, fm) in sorted(cells.items())
         ],
     }
 
@@ -166,33 +168,35 @@ def _future_booking_conflicts(
     return out
 
 
-def _merge_cells(cells: list["MatrixCell"]) -> list[tuple[str, int, int, int, int, int]]:
+def _merge_cells(cells: list["MatrixCell"]) -> list[tuple[str, int, int, int, int, int, bool]]:
     """
     Collapse per-cell availability into compact template rows.
-    Returns tuples (days_str, from_hour, end_hour, member_price, non_member_price, minutes_offset).
+    Returns tuples (days_str, from_hour, end_hour, member_price, non_member_price,
+    minutes_offset, for_member).
     """
-    by_day: dict[int, dict[int, tuple[int, int, int]]] = defaultdict(dict)
+    by_day: dict[int, dict[int, tuple[int, int, int, bool]]] = defaultdict(dict)
     for c in cells:
-        by_day[c.day][c.hour] = (c.member_price, c.non_member_price, c.minutes_offset)
+        by_day[c.day][c.hour] = (c.member_price, c.non_member_price, c.minutes_offset, bool(c.for_member))
 
-    runs: list[tuple[int, int, int, int, int, int]] = []  # day, from, end, m, nm, off
+    runs: list[tuple[int, int, int, int, int, int, bool]] = []  # day, from, end, m, nm, off, for_member
     for day in sorted(by_day):
         hours = by_day[day]
         for hour in sorted(hours):
-            m, nm, off = hours[hour]
+            m, nm, off, fm = hours[hour]
             last = runs[-1] if runs else None
-            if last and last[0] == day and last[2] == hour - 1 and last[3] == m and last[4] == nm and last[5] == off:
-                runs[-1] = (last[0], last[1], hour, m, nm, off)
+            if (last and last[0] == day and last[2] == hour - 1
+                    and last[3] == m and last[4] == nm and last[5] == off and last[6] == fm):
+                runs[-1] = (last[0], last[1], hour, m, nm, off, fm)
             else:
-                runs.append((day, hour, hour, m, nm, off))
+                runs.append((day, hour, hour, m, nm, off, fm))
 
-    groups: dict[tuple[int, int, int, int, int], list[int]] = defaultdict(list)
-    for day, fh, eh, m, nm, off in runs:
-        groups[(fh, eh, m, nm, off)].append(day)
+    groups: dict[tuple[int, int, int, int, int, bool], list[int]] = defaultdict(list)
+    for day, fh, eh, m, nm, off, fm in runs:
+        groups[(fh, eh, m, nm, off, fm)].append(day)
 
     return [
-        (",".join(str(d) for d in sorted(days)), fh, eh, m, nm, off)
-        for (fh, eh, m, nm, off), days in groups.items()
+        (",".join(str(d) for d in sorted(days)), fh, eh, m, nm, off, fm)
+        for (fh, eh, m, nm, off, fm), days in groups.items()
     ]
 
 
@@ -285,6 +289,7 @@ class MatrixCell(BaseModel):
     member_price: int
     non_member_price: int
     minutes_offset: int = 0   # slot starts this many minutes after the hour (0/15/30/45)
+    for_member: bool = False  # True = subscriber-only slot (visible only to מנוי holders)
 
 
 SURFACE_TYPES = {"קשה", "חימר", "דשא"}   # allowed court surfaces (fixed dropdown)
@@ -403,14 +408,13 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
 
     # ---- Apply: deactivate old set(s), create the new set. ----
     proto = (to_deactivate or active or [None])[0]
-    for_member = proto.for_member if proto else None
     # Surface is court-level: use the chosen value; if none sent, keep the current one.
     surface_type = payload.surface_type if payload.surface_type else (proto.surface_type if proto else None)
     for t in to_deactivate:
         t.is_active = "N"
 
     merged = _merge_cells(payload.cells)
-    for days_str, fh, eh, m, nm, off in merged:
+    for days_str, fh, eh, m, nm, off, fm in merged:
         db.add(RentalTemplate(
             club_id=manager.club_id,
             court_number=payload.court_number,
@@ -423,7 +427,7 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
             non_member_price=nm,
             is_active="Y",
             minutes_offset=off,
-            for_member=for_member,
+            for_member=("Y" if fm else None),   # per-cell subscriber-only flag
             surface_type=surface_type,
         ))
     created = len(merged)
@@ -459,8 +463,9 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
             "blocked_with_bookings": len(conflicts),
             "templates": [
                 {"days": ds, "from_hour": fh, "end_hour": eh,
-                 "member_price": m, "non_member_price": nm, "minutes_offset": off}
-                for ds, fh, eh, m, nm, off in merged
+                 "member_price": m, "non_member_price": nm, "minutes_offset": off,
+                 "for_member": bool(fm)}
+                for ds, fh, eh, m, nm, off, fm in merged
             ],
         },
     )
