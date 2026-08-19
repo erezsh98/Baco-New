@@ -42,7 +42,7 @@ export default function ChatWidget() {
   return (
     <div className="fixed bottom-6 left-6 z-50">
       {open ? (
-        <div className="bg-white rounded-2xl shadow-2xl w-80 flex flex-col" style={{ height: 420 }}>
+        <div className="bg-white rounded-2xl shadow-2xl w-80 max-w-[calc(100vw-3rem)] flex flex-col" style={{ height: 420 }}>
           <div className="bg-court text-white px-4 py-3 rounded-t-2xl flex justify-between items-center">
             <span className="font-semibold">עוזר TennisLine</span>
             <button onClick={() => setOpen(false)}><X size={18} /></button>

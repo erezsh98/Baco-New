@@ -102,9 +102,9 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <h1 className="text-2xl font-bold text-ink">ניהול הזמנות{clubName ? ` - ${clubName}` : ""}</h1>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             <Link href="/admin/schedule" className="text-sm text-court hover:underline">עריכת לוח זמנים</Link>
             <Link href="/admin/permissions" className="text-sm text-court hover:underline">ניהול הרשאות</Link>
             <Link href="/admin/audit" className="text-sm text-court hover:underline">יומן פעולות</Link>
@@ -147,7 +147,8 @@ export default function AdminPage() {
 
         {orders.length > 0 && (
           <div className="bg-white rounded-xl shadow overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[720px]">
               <thead className="bg-ink text-white">
                 <tr>
                   <th className="px-4 py-3 text-right">לקוח</th>
@@ -189,6 +190,7 @@ export default function AdminPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

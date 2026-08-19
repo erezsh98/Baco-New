@@ -254,7 +254,8 @@ export default function HolidaysPage() {
             <p className="text-center text-muted">לא הוגדרו חסימות</p>
           ) : (
             <div className="bg-white rounded-xl shadow overflow-hidden">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
                 <thead className="bg-ink text-white">
                   <tr>
                     <th className="px-4 py-3 text-right">סוג</th>
@@ -289,6 +290,7 @@ export default function HolidaysPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )
         )}

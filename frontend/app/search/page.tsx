@@ -167,7 +167,8 @@ export default function SearchPage() {
 
         {slots.length > 0 && (
           <div className="bg-white rounded-2xl shadow overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-court text-white">
                 <tr>
                   <th className="px-4 py-3 text-right">מועדון</th>
@@ -206,6 +207,7 @@ export default function SearchPage() {
                 ))}
               </tbody>
             </table>
+            </div>
 
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-4 py-3 text-sm border-t border-line">
