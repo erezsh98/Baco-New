@@ -51,7 +51,7 @@ export default function SuperTicketsPage() {
   }
 
   function numOrNull(v: any) { return v === "" || v === null ? null : Number(v); }
-  function addTime() { setForm((f: any) => ({ ...f, active_times: [...f.active_times, { day_of_week: 1, start_hour: 8, end_hour: 22 }] })); }
+  function addTime() { setForm((f: any) => ({ ...f, active_times: [...f.active_times, { day_of_week: 1, start_hour: 6, end_hour: 24 }] })); }
   function updateTime(i: number, key: keyof ActiveTime, val: number) {
     setForm((f: any) => ({ ...f, active_times: f.active_times.map((a: ActiveTime, j: number) => j === i ? { ...a, [key]: val } : a) }));
   }
@@ -191,7 +191,7 @@ export default function SuperTicketsPage() {
                     <input type="number" min={0} max={23} value={a.start_hour} onChange={e => updateTime(i, "start_hour", Number(e.target.value))}
                       className="w-16 border rounded-lg px-2 py-1 text-sm" />
                     <span className="text-sm text-muted">עד</span>
-                    <input type="number" min={0} max={23} value={a.end_hour} onChange={e => updateTime(i, "end_hour", Number(e.target.value))}
+                    <input type="number" min={0} max={24} value={a.end_hour} onChange={e => updateTime(i, "end_hour", Number(e.target.value))}
                       className="w-16 border rounded-lg px-2 py-1 text-sm" />
                     <button onClick={() => removeTime(i)} className="text-red-500 hover:text-red-700 text-lg leading-none">×</button>
                   </div>
