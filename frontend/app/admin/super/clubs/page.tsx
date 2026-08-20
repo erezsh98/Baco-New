@@ -10,13 +10,13 @@ type Club = {
   email: string | null; num_of_courts: number | null; contact_name: string | null; contact_phone: string | null;
   min_hour_for_cancel: number | null; rent_threshold_days: number | null; rental_threshold_hours: number | null;
   admin_start_hour: number | null; slot_window_days: number | null; u_name: string | null;
-  order_on_saturday: string | null; street: string | null; city: string | null;
+  street: string | null; city: string | null;
 };
 
 const EMPTY: any = {
   club_name: "", area_id: "", email: "", num_of_courts: "", contact_name: "", contact_phone: "",
   min_hour_for_cancel: "", rent_threshold_days: "", rental_threshold_hours: "", admin_start_hour: "",
-  slot_window_days: "", u_name: "", order_on_saturday: false, street: "", city: "",
+  slot_window_days: "", u_name: "", street: "", city: "",
 };
 
 export default function SuperClubsPage() {
@@ -47,7 +47,7 @@ export default function SuperClubsPage() {
       min_hour_for_cancel: c.min_hour_for_cancel ?? "", rent_threshold_days: c.rent_threshold_days ?? "",
       rental_threshold_hours: c.rental_threshold_hours ?? "", admin_start_hour: c.admin_start_hour ?? "",
       slot_window_days: c.slot_window_days ?? "", u_name: c.u_name ?? "",
-      order_on_saturday: c.order_on_saturday === "Y", street: c.street ?? "", city: c.city ?? "",
+      street: c.street ?? "", city: c.city ?? "",
     });
   }
 
@@ -61,7 +61,7 @@ export default function SuperClubsPage() {
       contact_phone: form.contact_phone || null, min_hour_for_cancel: numOrNull(form.min_hour_for_cancel),
       rent_threshold_days: numOrNull(form.rent_threshold_days), rental_threshold_hours: numOrNull(form.rental_threshold_hours),
       admin_start_hour: numOrNull(form.admin_start_hour), slot_window_days: numOrNull(form.slot_window_days),
-      u_name: form.u_name || null, order_on_saturday: form.order_on_saturday ? "Y" : null,
+      u_name: form.u_name || null,
       street: form.street || null, city: form.city || null,
     };
     try {
@@ -164,10 +164,6 @@ export default function SuperClubsPage() {
               {F("Pelecard u_name", "u_name")}
               {F("רחוב", "street")}
               {F("עיר", "city")}
-              <label className="flex items-center gap-2 text-sm mt-2">
-                <input type="checkbox" checked={form.order_on_saturday} onChange={e => setForm({ ...form, order_on_saturday: e.target.checked })} />
-                מאפשר הזמנות בשבת
-              </label>
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button onClick={() => setEditId(null)} className="px-5 py-2 rounded-lg border border-line hover:bg-canvas text-sm">ביטול</button>

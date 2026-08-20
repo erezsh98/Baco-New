@@ -82,7 +82,6 @@ class ClubIn(BaseModel):
     admin_start_hour: int | None = None
     slot_window_days: int | None = None
     u_name: str | None = None            # Pelecard merchant username
-    order_on_saturday: str | None = None  # "Y" or null
     street: str | None = None
     city: str | None = None
 
@@ -100,7 +99,7 @@ def _club_out(db: Session, c: Club) -> dict:
         "rental_threshold_hours": c.rental_threshold_hours,
         "admin_start_hour": c.admin_start_hour,
         "slot_window_days": c.slot_window_days,
-        "u_name": c.u_name, "order_on_saturday": c.order_on_saturday,
+        "u_name": c.u_name,
         "street": addr.street if addr else None, "city": addr.city if addr else None,
     }
 
@@ -118,7 +117,6 @@ def _apply_club(db: Session, c: Club, body: ClubIn) -> None:
     c.admin_start_hour = body.admin_start_hour
     c.slot_window_days = body.slot_window_days
     c.u_name = body.u_name
-    c.order_on_saturday = body.order_on_saturday
     # address (street/city) lives in its own table
     if body.street is not None or body.city is not None:
         addr = db.query(Address).filter(Address.id == c.address_id).first() if c.address_id else None
