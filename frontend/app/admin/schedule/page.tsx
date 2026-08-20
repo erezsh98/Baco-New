@@ -266,7 +266,10 @@ export default function SchedulePage() {
       const n = { ...prev };
       const existing = n[key];
       if (brush.kind === "block") delete n[key];
-      else if (brush.kind === "tier") n[key] = { tier: brush.id, offset: existing ? existing.offset : 0, forMember: existing?.forMember };
+      // Painting a price color always ADDS a regular slot (and clears any ★),
+      // so color tools are the unambiguous "add slot" action and you're never
+      // locked out. Mark subscriber-only afterwards with the "למנויים בלבד" tool.
+      else if (brush.kind === "tier") n[key] = { tier: brush.id, offset: existing ? existing.offset : 0, forMember: false };
       else if (brush.kind === "offset") { if (existing) n[key] = { ...existing, offset: brush.value }; }
       else if (brush.kind === "member") { if (existing) n[key] = { ...existing, forMember: brush.value }; }
       return n;
@@ -545,10 +548,15 @@ export default function SchedulePage() {
                   <label className="flex items-center gap-1 cursor-pointer"><input type="radio" checked={priceMode === "different"} onChange={() => changeMode("different")} /> חבר / לא-חבר</label>
                 </div>
                 <div className={`flex flex-wrap gap-3 items-center rounded-lg p-2 ${brush.kind === "tier" ? "bg-canvas ring-1 ring-line" : ""}`}>
-                  <span className="text-xs font-semibold text-muted">מחיר (צבע):</span>
+                  <span className="text-xs font-semibold text-muted">מחיר (צבע) — בחרו צבע והוסיפו משבצות:</span>
                   {tiers.map(t => (
-                    <div key={t.id} className={`flex items-center gap-2 border rounded-lg p-2 ${brush.kind === "tier" && brush.id === t.id ? "ring-2 ring-offset-1 ring-ink" : ""}`}>
-                      <button type="button" onClick={() => setBrush({ kind: "tier", id: t.id })} className="w-6 h-6 rounded" style={{ background: t.color }} title="בחר צבע זה" />
+                    // The whole chip selects this price as the active tool — not just
+                    // the color square — so clicking anywhere on it lets you add/paint
+                    // slots. The price inputs still edit; the × delete stops propagation.
+                    <div key={t.id} onClick={() => setBrush({ kind: "tier", id: t.id })}
+                      title="בחרו מחיר זה כדי להוסיף/לצבוע משבצות"
+                      className={`flex items-center gap-2 border rounded-lg p-2 cursor-pointer ${brush.kind === "tier" && brush.id === t.id ? "ring-2 ring-offset-1 ring-ink" : ""}`}>
+                      <span className="w-6 h-6 rounded shrink-0" style={{ background: t.color }} />
                       {priceMode === "same" ? (
                         <span className="flex items-center gap-1 text-sm">₪<input type="number" value={t.member} onChange={e => updateTier(t.id, "member", Number(e.target.value))} className="w-16 border rounded px-1 py-0.5" /></span>
                       ) : (
@@ -557,7 +565,7 @@ export default function SchedulePage() {
                           לא-חבר ₪<input type="number" value={t.nonMember} onChange={e => updateTier(t.id, "nonMember", Number(e.target.value))} className="w-14 border rounded px-1 py-0.5" />
                         </span>
                       )}
-                      <button type="button" onClick={() => removeTier(t.id)} className="text-red-500 hover:text-red-700 text-lg leading-none" title="מחק מחיר">×</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); removeTier(t.id); }} className="text-red-500 hover:text-red-700 text-lg leading-none" title="מחק מחיר">×</button>
                     </div>
                   ))}
                   <button type="button" onClick={addTier} className="border border-dashed rounded-lg px-3 py-2 text-sm text-court hover:bg-mint">+ הוסף מחיר</button>
@@ -585,7 +593,7 @@ export default function SchedulePage() {
                     <input type="radio" name="member" checked={brush.kind === "member" && brush.value === false} onChange={() => setBrush({ kind: "member", value: false })} />
                     פתוח לכולם
                   </label>
-                  <span className="text-xs text-muted">בחרו כלי זה ולחצו על תאים צבועים לסימון/ביטול (מסומן ב-★ ובמסגרת צהובה). שעות אלה יוצגו רק למחזיקי מנוי בתוקף.</span>
+                  <span className="text-xs text-muted">כלי סימון בלבד — פועל על תאים צבועים קיימים ואינו מוסיף משבצות. כדי להוסיף משבצות רגילות בחרו צבע מחיר למעלה ולחצו/גררו. תאי ★ יוצגו רק למנויים בתוקף.</span>
                 </div>
               </div>
             )}
