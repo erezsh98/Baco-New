@@ -120,7 +120,7 @@ function RegisterForm() {
             <span>
               קראתי ואני מסכים{" "}
               <a
-                href="/terms.pdf"
+                href="/terms.html"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-court underline hover:text-court-dark"
