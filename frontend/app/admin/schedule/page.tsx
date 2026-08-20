@@ -321,6 +321,7 @@ export default function SchedulePage() {
   async function doSave(confirm = false) {
     if (court == null) return;
     if (model === "period" && (!startDate || !endDate)) { setMsgOk(false); setMsg("יש להזין תאריך התחלה וסיום לתקופה"); return; }
+    if (!surfaceType) { setMsgOk(false); setMsg("יש לבחור סוג משטח"); return; }
     setSaving(true); setMsg("");
     const payload: any = {
       court_number: court, model, price_mode: priceMode,
@@ -440,7 +441,7 @@ export default function SchedulePage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-ink mb-1">סוג משטח</label>
+            <label className="block text-sm font-medium text-ink mb-1">סוג משטח <span className="text-red-500">*</span></label>
             <select value={surfaceType} onChange={e => { setSurfaceType(e.target.value); setDirty(true); }}
               className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
               <option value="">— לא מוגדר —</option>

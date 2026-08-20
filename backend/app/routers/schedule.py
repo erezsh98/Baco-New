@@ -327,7 +327,9 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
             raise HTTPException(status_code=400, detail=f"שעה לא תקינה: {c.hour}")
         if c.minutes_offset not in ALLOWED_OFFSETS:
             raise HTTPException(status_code=400, detail=f"היסט דקות לא תקין: {c.minutes_offset}")
-    if payload.surface_type and payload.surface_type not in SURFACE_TYPES:
+    if not payload.surface_type:
+        raise HTTPException(status_code=400, detail="יש לבחור סוג משטח")
+    if payload.surface_type not in SURFACE_TYPES:
         raise HTTPException(status_code=400, detail=f"סוג משטח לא תקין: {payload.surface_type}")
 
     active = _active_templates(db, manager.club_id, payload.court_number)
@@ -408,8 +410,8 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
 
     # ---- Apply: deactivate old set(s), create the new set. ----
     proto = (to_deactivate or active or [None])[0]
-    # Surface is court-level: use the chosen value; if none sent, keep the current one.
-    surface_type = payload.surface_type if payload.surface_type else (proto.surface_type if proto else None)
+    # Surface is court-level and required (validated above).
+    surface_type = payload.surface_type
     for t in to_deactivate:
         t.is_active = "N"
 
