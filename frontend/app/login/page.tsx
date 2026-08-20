@@ -30,7 +30,10 @@ function LoginForm() {
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
       localStorage.setItem("access_token", res.data.access_token);
-      router.push(next || "/search");
+      // Replace (not push) so the login page is removed from history: after login
+      // the browser Back — and the payment page's "חזור לחיפוש" (router.back) —
+      // returns to the previous page (e.g. the search results), not the login screen.
+      router.replace(next || "/search");
     } catch (err: any) {
       setError(err.response?.data?.detail || "אימייל או סיסמה שגויים");
     } finally {
