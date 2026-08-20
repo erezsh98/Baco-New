@@ -26,6 +26,9 @@ export default function PermissionsPage() {
   const [view, setView] = useState<"add" | "report">("add");
   const [filterUser, setFilterUser] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
+  const [editPermitId, setEditPermitId] = useState<number | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const todayStr = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
     // Only clubs this manager manages (was /clubs = all clubs). Default to the
@@ -79,6 +82,20 @@ export default function PermissionsPage() {
       setPermits(p => p.filter(x => x.id !== id));
     } catch {
       setError("שגיאה בהסרה");
+    }
+  }
+
+  // A row is active (editable) when it has no end date or it hasn't passed yet.
+  const isActive = (p: Permit) => !p.end_date || p.end_date >= todayStr;
+  function startEditDate(p: Permit) { setEditPermitId(p.id); setEditDate(p.end_date || todayStr); setError(""); }
+  async function saveEndDate(p: Permit) {
+    if (!editDate) return;
+    try {
+      await api.patch(`/admin/permissions/${p.id}`, { end_date: editDate });
+      setEditPermitId(null);
+      loadPermits();
+    } catch (e: any) {
+      setError(e.response?.data?.detail || "עדכון התאריך נכשל");
     }
   }
 
@@ -200,7 +217,23 @@ export default function PermissionsPage() {
                               <td className="py-2 px-2">{p.email}</td>
                               <td className="py-2 px-2 whitespace-nowrap">{p.phone || "—"}</td>
                               <td className="py-2 px-2 whitespace-nowrap">{p.group}</td>
-                              <td className="py-2 px-2 whitespace-nowrap">{p.end_date || "—"}</td>
+                              <td className="py-2 px-2 whitespace-nowrap">
+                                {editPermitId === p.id ? (
+                                  <span className="flex items-center gap-1">
+                                    <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                                      className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-court" />
+                                    <button onClick={() => saveEndDate(p)} className="text-court hover:underline">שמור</button>
+                                    <button onClick={() => setEditPermitId(null)} className="text-muted hover:underline">ביטול</button>
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-2">
+                                    {p.end_date || "—"}
+                                    {isActive(p) && (
+                                      <button onClick={() => startEditDate(p)} className="text-court hover:underline text-xs">ערוך</button>
+                                    )}
+                                  </span>
+                                )}
+                              </td>
                               <td className="py-2 px-2 text-left">
                                 <button onClick={() => removePermit(p.id)} className="text-red-600 hover:underline">הסר</button>
                               </td>

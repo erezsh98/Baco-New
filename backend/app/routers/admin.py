@@ -356,6 +356,58 @@ def remove_permission(permit_id: int, db: Session = Depends(get_db), admin: User
     return {"message": "Removed"}
 
 
+class UpdatePermitBody(BaseModel):
+    end_date: date
+
+
+@router.patch("/permissions/{permit_id}")
+def update_permission(permit_id: int, body: UpdatePermitBody, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Update a membership's end date ("בתוקף עד"). For a מנוי membership, keep the
+    paired subscription ticket — which drives search coverage — on the same date."""
+    p = db.query(ClubCustomerPermittedTicket).filter(ClubCustomerPermittedTicket.id == permit_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Not found")
+    _require_manages(db, admin.id, p.club_id)
+
+    old_end = p.end_date
+    p.end_date = body.end_date
+
+    # A מנוי membership's coverage comes from its CustomerTicket, created with the
+    # same end_date. Move that ticket to the new date too (match by the old date so
+    # we touch only the ticket paired with this membership).
+    synced = 0
+    if (p.ticket_type or "").strip() == SUBSCRIPTION_TYPE:
+        from app.models.ticket import ClubTicket, CustomerTicket
+        q = (
+            db.query(CustomerTicket)
+            .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
+            .filter(
+                CustomerTicket.user_id == p.user_id,
+                ClubTicket.club_id == p.club_id,
+                func.trim(ClubTicket.ticket_type) == SUBSCRIPTION_TYPE,
+            )
+        )
+        if old_end is not None:
+            q = q.filter(CustomerTicket.end_date == old_end)
+        for ct in q.all():
+            ct.end_date = body.end_date
+            synced += 1
+
+    u = p.user
+    club = db.query(Club).filter(Club.id == p.club_id).first()
+    who = f"{u.first_name} {u.last_name}" if u else f"#{p.user_id}"
+    audit.record(
+        db, admin, "permission.update",
+        f"עודכן תוקף הרשאה '{p.ticket_type}' של {who} עד {body.end_date:%d/%m/%Y}",
+        club_id=p.club_id, club_name=(club.club_name if club else None),
+        detail={"permit_id": permit_id, "user_id": p.user_id, "ticket_type": p.ticket_type,
+                "old_end_date": str(old_end) if old_end else None,
+                "end_date": str(body.end_date), "synced_subscriptions": synced},
+    )
+    db.commit()
+    return {"message": "התאריך עודכן", "end_date": str(body.end_date)}
+
+
 @router.post("/rebuild")
 def trigger_rebuild(db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     rebuild(db)

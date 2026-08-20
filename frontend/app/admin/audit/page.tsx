@@ -25,6 +25,7 @@ const ACTIONS: Record<string, { label: string; cls: string }> = {
   "holiday.update":       { label: "עדכון חסימה",      cls: "bg-amber-100 text-amber-800" },
   "holiday.delete":       { label: "מחיקת חסימה",      cls: "bg-red-100 text-red-800" },
   "permission.grant":     { label: "הענקת הרשאה",      cls: "bg-green-100 text-green-800" },
+  "permission.update":    { label: "עדכון תוקף הרשאה", cls: "bg-blue-100 text-blue-800" },
   "permission.revoke":    { label: "ביטול הרשאה",      cls: "bg-red-100 text-red-800" },
   "order.cancel":         { label: "ביטול הזמנה",      cls: "bg-red-100 text-red-800" },
 };
