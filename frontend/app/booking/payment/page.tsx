@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 
@@ -23,6 +23,10 @@ export default function PaymentPage() {
   const [iframeHtml, setIframeHtml] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Guard so the auto-open credit flow fires only ONCE (React StrictMode double-
+  // invokes effects in dev, which would otherwise create two orders — the second
+  // failing with "slot no longer available" because the first already claimed it).
+  const autoStartedRef = useRef(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("selected_slot");
@@ -49,7 +53,11 @@ export default function PaymentPage() {
           } else if (!r.data.order_limit && !s.is_free && !s.covered_by_subscription) {
             // No usable ticket and payment is required → open the credit-card screen
             // automatically (mirrors auto-opening the ticket screen when tickets exist).
-            proceedCredit(s);
+            // Once-only guard against StrictMode's double effect invocation in dev.
+            if (!autoStartedRef.current) {
+              autoStartedRef.current = true;
+              proceedCredit(s);
+            }
           }
         })
         .catch(() => {});
