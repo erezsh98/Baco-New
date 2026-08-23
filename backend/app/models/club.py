@@ -43,7 +43,7 @@ class Club(Base):
     u_name = Column(String(255))          # Pelecard merchant username
     sms_to_manager = Column(String(1))    # Y/N
     sms_to_gate = Column(String(1))       # Y/N
-    gate_phone = Column(String(255))
+    gate_phone = Column("gate_pone", String(255))   # prod column is the typo'd "gate_pone"
     gate_pass = Column(String(255))
     order_on_saturday = Column(String(1))
 
