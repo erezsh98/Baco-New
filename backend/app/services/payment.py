@@ -2,12 +2,10 @@
 Pelecard iframe integration — ported to match the legacy CreditCardService.
 
 The gateway's Iframe endpoint (pageName=ajaxPage) is POSTed a form with the
-terminal credentials and returns the iframe URL to embed. On completion Pelecard
-redirects the iframe to goodUrl/errorUrl with a fixed-width `result` string that
-encodes status/amount/approval (see routers/payment.py).
+terminal credentials and returns the payment-form **HTML** to embed (not a URL).
+On completion Pelecard redirects the form to goodUrl/errorUrl with a fixed-width
+`result` string that encodes status/amount/approval (see routers/payment.py).
 """
-import re
-
 import httpx
 
 from app.config import settings
@@ -20,21 +18,17 @@ CLUB_CREDENTIALS = {
     "shasho":       {"term": settings.pelecard_shasho_term,       "password": settings.pelecard_shasho_password},
 }
 
-_URL_RE = re.compile(r'https?://[^\s<>"\']+')
-
-
-def _extract_iframe_url(resp_text: str) -> str:
-    """The Iframe endpoint returns the iframe URL (its old code names the response
-    'xml'); on failure it returns an error string with no URL."""
-    m = _URL_RE.search(resp_text or "")
-    if not m:
-        raise ValueError(f"Pelecard init failed: {(resp_text or '').strip()[:300]}")
-    return m.group(0)
+def _looks_like_payment_form(html: str) -> bool:
+    """A successful ajaxPage response is the payment-form HTML (contains the
+    credit-card fields / main container). An error is a short message without it."""
+    h = (html or "").lower()
+    return "creditcard" in h or "maindiv" in h or "cardholder" in h or "<form" in h
 
 
 def build_pelecard_iframe(order_id: int, amount_nis: float, club_uname: str, purchase_type: int) -> str:
     """
-    Initialize a Pelecard payment and return the iframe URL to embed.
+    Initialize a Pelecard payment and return the payment-form **HTML** to embed
+    (the caller renders it inside an <iframe srcdoc>).
     purchase_type: 1 = ticket, 2 = court rental. amount_nis is in NIS (→ agorot).
     Mirrors the legacy CreditCardService.buidPelecardIframe parameter set exactly.
     """
@@ -82,4 +76,9 @@ def build_pelecard_iframe(order_id: int, amount_nis: float, club_uname: str, pur
 
     response = httpx.post(settings.pelecard_gateway_url, data=params, timeout=30)
     response.raise_for_status()
-    return _extract_iframe_url(response.text)
+    html = response.text or ""
+    # ajaxPage returns the payment-form HTML; a failure returns a short error
+    # message with no form — surface that as an error instead of showing raw text.
+    if not _looks_like_payment_form(html):
+        raise ValueError(f"Pelecard init failed: {html.strip()[:300]}")
+    return html

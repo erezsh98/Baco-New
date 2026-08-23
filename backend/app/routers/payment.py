@@ -67,8 +67,8 @@ def get_pelecard_iframe(req: PelecardRequest, db: Session = Depends(get_db), cur
     if not slot:
         raise HTTPException(status_code=400, detail="Order has no slot")
     club = slot.rental_template.club
-    url = build_pelecard_iframe(order.order_id, order.amount or 0, (club.u_name or "").strip(), 2)
-    return {"iframe_url": url}
+    iframe_html = build_pelecard_iframe(order.order_id, order.amount or 0, (club.u_name or "").strip(), 2)
+    return {"iframe_html": iframe_html}
 
 
 # ---------------------------------------------------------------------------

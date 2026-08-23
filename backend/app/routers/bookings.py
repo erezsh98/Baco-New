@@ -316,8 +316,8 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
             send_booking_confirmation_cc(order)          # paid by credit card (or free)
             return {"order_id": order.id, "confirmed": True, "message": "Booking confirmed"}
         from app.services.payment import build_pelecard_iframe
-        iframe_url = build_pelecard_iframe(order.order_id, float(amount), club.u_name.strip(), 2)
-        return {"order_id": order.id, "iframe_url": iframe_url}
+        iframe_html = build_pelecard_iframe(order.order_id, float(amount), club.u_name.strip(), 2)
+        return {"order_id": order.id, "iframe_html": iframe_html}
 
     # paid with a ticket — already final; send the confirmation
     send_booking_confirmation_ticket(order)

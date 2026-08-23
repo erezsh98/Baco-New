@@ -20,7 +20,7 @@ export default function PaymentPage() {
   const [orderLimit, setOrderLimit] = useState(false);
   const [payMethod, setPayMethod] = useState<"credit" | "ticket">("credit");
   const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
-  const [iframeUrl, setIframeUrl] = useState("");
+  const [iframeHtml, setIframeHtml] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -39,37 +39,46 @@ export default function PaymentPage() {
       // Slot-aware: only כרטיסיות valid for this slot's day/hour (ticket_active_time)
       api.get(`/tickets/for-slot?slot_id=${s.id}`)
         .then(r => {
-          setTickets(r.data.tickets);
+          const tix = r.data.tickets || [];
+          setTickets(tix);
           setOrderLimit(r.data.order_limit);
-          // When the user has any eligible כרטיסייה (a מנוי or a punch-card),
-          // open the כרטיסייה tab so they see and choose it — but don't pre-pick.
-          if (r.data.tickets?.length > 0) setPayMethod("ticket");
+          if (tix.length > 0) {
+            // Has an eligible כרטיסייה (מנוי or punch-card): open the כרטיסייה tab
+            // so they see and choose it — but don't pre-pick.
+            setPayMethod("ticket");
+          } else if (!r.data.order_limit && !s.is_free && !s.covered_by_subscription) {
+            // No usable ticket and payment is required → open the credit-card screen
+            // automatically (mirrors auto-opening the ticket screen when tickets exist).
+            proceedCredit(s);
+          }
         })
         .catch(() => {});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function proceedCredit() {
-    if (!slot) return;
+  async function proceedCredit(useSlot?: Slot) {
+    const s = useSlot ?? slot;
+    if (!s) return;
     setError(""); setLoading(true);
     try {
       const res = await api.post("/bookings/create", {
-        slot_id: slot.id,
+        slot_id: s.id,
         payment_method: "credit",
       });
       if (res.data.confirmed) {
         // dev mode / no payment gateway — the order is already confirmed
-        rememberBooking();
+        rememberBooking(s);
         localStorage.removeItem("selected_slot");
         router.push("/booking/thank-you");
         return;
       }
-      if (res.data.iframe_url) {
-        // Remember the booking now: after payment, Pelecard redirects the iframe
+      if (res.data.iframe_html) {
+        // Remember the booking now: after payment, Pelecard redirects the form
         // to the backend callback, which breaks out to the thank-you page (which
         // reads last_booking for the confirmation + promotions).
-        rememberBooking();
-        setIframeUrl(res.data.iframe_url);
+        rememberBooking(s);
+        setIframeHtml(res.data.iframe_html);
       } else {
         setError("שגיאה: לא התקבל מסך תשלום. נסו שוב או פנו לתמיכה.");
       }
@@ -89,7 +98,7 @@ export default function PaymentPage() {
         payment_method: "ticket",
         customer_ticket_id: selectedTicket,
       });
-      rememberBooking();
+      rememberBooking(slot);
       localStorage.removeItem("selected_slot");
       router.push("/booking/thank-you");
     } catch (e: any) {
@@ -99,25 +108,24 @@ export default function PaymentPage() {
     }
   }
 
-  function rememberBooking() {
-    if (!slot) return;
+  function rememberBooking(s: Slot) {
     localStorage.setItem("last_booking", JSON.stringify({
-      club_id: slot.club_id,
-      club_name: slot.club_name,
-      date: slot.date,
-      hour: slot.hour,
-      minutes_offset: slot.minutes_offset,
+      club_id: s.club_id,
+      club_name: s.club_name,
+      date: s.date,
+      hour: s.hour,
+      minutes_offset: s.minutes_offset,
     }));
   }
 
   if (!slot) return null;
 
-  if (iframeUrl) {
+  if (iframeHtml) {
     return (
       <main className="min-h-screen bg-mint p-4">
         <div className="max-w-xl mx-auto bg-white rounded-2xl shadow p-4">
           <h2 className="text-xl font-bold text-court-dark mb-4 text-center">תשלום בכרטיס אשראי</h2>
-          <iframe src={iframeUrl} title="Pelecard" className="w-full rounded-lg border border-line"
+          <iframe srcDoc={iframeHtml} title="Pelecard" className="w-full rounded-lg border border-line"
             style={{ height: 600 }} />
         </div>
       </main>

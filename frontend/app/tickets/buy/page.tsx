@@ -45,7 +45,8 @@ export default function BuyTicketPage() {
       <main className="min-h-screen bg-mint p-4">
         <div className="max-w-xl mx-auto bg-white rounded-2xl shadow p-4">
           <h2 className="text-xl font-bold text-court-dark mb-4 text-center">תשלום כרטיסייה</h2>
-          <div dangerouslySetInnerHTML={{ __html: iframeHtml }} />
+          <iframe srcDoc={iframeHtml} title="Pelecard" className="w-full rounded-lg border border-line"
+            style={{ height: 600 }} />
         </div>
       </main>
     );
