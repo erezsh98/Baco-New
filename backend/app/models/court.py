@@ -1,11 +1,13 @@
-from sqlalchemy import Column, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
 
 
 class RentalTemplate(Base):
-    __tablename__ = "rental_template"
+    # Production (legacy Grails) table is misspelled "rental_tamplate" — keep it so
+    # the app runs against the existing production DB.
+    __tablename__ = "rental_tamplate"
 
     id = Column(Integer, primary_key=True)
     club_id = Column(Integer, ForeignKey("club.id"))
@@ -16,10 +18,11 @@ class RentalTemplate(Base):
     end_hour = Column(Integer)
     court_number = Column(Integer)
     surface_type = Column(String(255))
-    member_price = Column(Integer)
-    non_member_price = Column(Integer)
+    member_price = Column(Float)          # DOUBLE in the DB — supports decimals (e.g. 16.5)
+    non_member_price = Column(Float)
     is_active = Column(String(1), default="Y")  # Y/N
-    minutes_offset = Column(Integer, default=0)
+    # Python attribute stays minutes_offset; DB column is the prod typo "minuts_offset".
+    minutes_offset = Column("minuts_offset", Integer, default=0)
     for_member = Column(String(1))
 
     club = relationship("Club", back_populates="rental_templates")
@@ -30,7 +33,8 @@ class AvailableCourtSlot(Base):
     __tablename__ = "available_courts_search"
 
     id = Column(Integer, primary_key=True)
-    rental_template_id = Column(Integer, ForeignKey("rental_template.id"))
+    # Python attribute stays rental_template_id; DB column/FK use the prod typo.
+    rental_template_id = Column("rental_tamplate_id", Integer, ForeignKey("rental_tamplate.id"))
     hour = Column(Integer)
     curdate = Column(Date)
     taken = Column(DateTime, nullable=True)

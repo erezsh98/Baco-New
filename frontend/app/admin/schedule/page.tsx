@@ -283,7 +283,9 @@ export default function SchedulePage() {
     setTiers(p => [...p, t]); setBrush({ kind: "tier", id: t.id }); setDirty(true);
   }
   function updateTier(id: number, field: "member" | "nonMember", val: number) {
-    setTiers(p => p.map(t => t.id !== id ? t : (priceMode === "same" ? { ...t, member: val, nonMember: val } : { ...t, [field]: val })));
+    // Prices support one digit after the decimal (e.g. 16.5); clamp to 1 decimal.
+    const v = isNaN(val) ? 0 : Math.round(val * 10) / 10;
+    setTiers(p => p.map(t => t.id !== id ? t : (priceMode === "same" ? { ...t, member: v, nonMember: v } : { ...t, [field]: v })));
     setDirty(true);
   }
   function removeTier(id: number) {
@@ -559,11 +561,11 @@ export default function SchedulePage() {
                       className={`flex items-center gap-2 border rounded-lg p-2 cursor-pointer ${brush.kind === "tier" && brush.id === t.id ? "ring-2 ring-offset-1 ring-ink" : ""}`}>
                       <span className="w-6 h-6 rounded shrink-0" style={{ background: t.color }} />
                       {priceMode === "same" ? (
-                        <span className="flex items-center gap-1 text-sm">₪<input type="number" value={t.member} onChange={e => updateTier(t.id, "member", Number(e.target.value))} className="w-16 border rounded px-1 py-0.5" /></span>
+                        <span className="flex items-center gap-1 text-sm">₪<input type="number" step="0.1" value={t.member} onChange={e => updateTier(t.id, "member", Number(e.target.value))} className="w-16 border rounded px-1 py-0.5" /></span>
                       ) : (
                         <span className="flex items-center gap-1 text-xs">
-                          חבר ₪<input type="number" value={t.member} onChange={e => updateTier(t.id, "member", Number(e.target.value))} className="w-14 border rounded px-1 py-0.5" />
-                          לא-חבר ₪<input type="number" value={t.nonMember} onChange={e => updateTier(t.id, "nonMember", Number(e.target.value))} className="w-14 border rounded px-1 py-0.5" />
+                          חבר ₪<input type="number" step="0.1" value={t.member} onChange={e => updateTier(t.id, "member", Number(e.target.value))} className="w-14 border rounded px-1 py-0.5" />
+                          לא-חבר ₪<input type="number" step="0.1" value={t.nonMember} onChange={e => updateTier(t.id, "nonMember", Number(e.target.value))} className="w-14 border rounded px-1 py-0.5" />
                         </span>
                       )}
                       <button type="button" onClick={(e) => { e.stopPropagation(); removeTier(t.id); }} className="text-red-500 hover:text-red-700 text-lg leading-none" title="מחק מחיר">×</button>

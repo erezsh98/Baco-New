@@ -74,7 +74,7 @@ def is_club_member(db: Session, user_id: int | None, club_id: int) -> bool:
     return row is not None
 
 
-def effective_price(db: Session, user, slot) -> tuple[int, bool]:
+def effective_price(db: Session, user, slot) -> tuple[float, bool]:
     """(price, is_member_price) for this user + slot.
 
     Club members pay member_price when it is configured (may be 0 = free);

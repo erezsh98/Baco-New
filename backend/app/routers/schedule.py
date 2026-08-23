@@ -286,8 +286,8 @@ def get_matrix(
 class MatrixCell(BaseModel):
     day: int          # 1=Sunday .. 7=Saturday
     hour: int
-    member_price: int
-    non_member_price: int
+    member_price: float
+    non_member_price: float
     minutes_offset: int = 0   # slot starts this many minutes after the hour (0/15/30/45)
     for_member: bool = False  # True = subscriber-only slot (visible only to מנוי holders)
 

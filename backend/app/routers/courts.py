@@ -24,9 +24,9 @@ class CourtSlotOut(BaseModel):
     date: date
     hour: int
     minutes_offset: int
-    member_price: int | None
-    non_member_price: int | None
-    price: int          # effective price for the requesting user (member_price for members)
+    member_price: float | None
+    non_member_price: float | None
+    price: float        # effective price for the requesting user (member_price for members)
     is_member_price: bool
     is_free: bool       # member_price == 0 → no payment needed
     covered_by_subscription: bool = False   # user holds a מנוי → books free via subscription
