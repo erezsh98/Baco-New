@@ -23,8 +23,18 @@ router = APIRouter(prefix="/payment", tags=["payment"])
 # to the frontend (thank-you / search), since the callback lands inside the
 # small payment iframe.
 # ---------------------------------------------------------------------------
-def _lower_params(request: Request) -> dict:
-    return {k.lower(): v for k, v in request.query_params.items()}
+async def _lower_params(request: Request) -> dict:
+    # Pelecard delivers the result to goodUrl/errorUrl either as GET query params
+    # or (depending on the terminal/account) as a POST form body. Read both.
+    data = {k.lower(): v for k, v in request.query_params.items()}
+    if request.method == "POST":
+        try:
+            form = await request.form()
+            for k, v in form.items():
+                data[k.lower()] = str(v)
+        except Exception:
+            pass
+    return data
 
 
 def _redirect_top(path: str) -> HTMLResponse:
@@ -74,9 +84,9 @@ def get_pelecard_iframe(req: PelecardRequest, db: Session = Depends(get_db), cur
 # ---------------------------------------------------------------------------
 # Court-rental callbacks
 # ---------------------------------------------------------------------------
-@router.get("/pelecard-good")
+@router.api_route("/pelecard-good", methods=["GET", "POST"])
 async def pelecard_success(request: Request, db: Session = Depends(get_db)):
-    q = _lower_params(request)
+    q = await _lower_params(request)
     result = q.get("result", "") or ""
     token = q.get("token")
     parmx = (q.get("parmx") or "").replace("baco-", "")
@@ -112,23 +122,23 @@ async def pelecard_success(request: Request, db: Session = Depends(get_db)):
     return _redirect_top("/booking/thank-you")
 
 
-@router.get("/pelecard-bad")
+@router.api_route("/pelecard-bad", methods=["GET", "POST"])
 async def pelecard_failure(request: Request, db: Session = Depends(get_db)):
-    q = _lower_params(request)
+    q = await _lower_params(request)
     return _error_top(_pelecard_error_desc(db, q.get("result", "")))
 
 
 # ---------------------------------------------------------------------------
 # Ticket-purchase callbacks
 # ---------------------------------------------------------------------------
-@router.get("/pelecard-ticket-good")
+@router.api_route("/pelecard-ticket-good", methods=["GET", "POST"])
 async def pelecard_ticket_success(request: Request, db: Session = Depends(get_db)):
     """Finalize a ticket purchase after approval (mirrors PelecardTicketGoodController)."""
     from datetime import date, timedelta
     from app.models.ticket import ClubCustomerPermittedTicket, CustomerTicket
     from app.routers.tickets import UNPAID_DATE
 
-    q = _lower_params(request)
+    q = await _lower_params(request)
     result = q.get("result", "") or ""
     parmx = (q.get("parmx") or "").replace("baco-", "")
 
@@ -170,7 +180,7 @@ async def pelecard_ticket_success(request: Request, db: Session = Depends(get_db
     return _redirect_top("/tickets")
 
 
-@router.get("/pelecard-ticket-bad")
+@router.api_route("/pelecard-ticket-bad", methods=["GET", "POST"])
 async def pelecard_ticket_failure(request: Request, db: Session = Depends(get_db)):
-    q = _lower_params(request)
+    q = await _lower_params(request)
     return _error_top(_pelecard_error_desc(db, q.get("result", "")))
