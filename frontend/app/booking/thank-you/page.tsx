@@ -4,32 +4,9 @@ import { useEffect, useState } from "react";
 
 type Promo = { src: string; name: string };
 
-function PromoGrid({ title, icon, items }: { title: string; icon: string; items: Promo[] }) {
-  if (items.length === 0) return null;
-  return (
-    <section className="w-full rounded-2xl bg-white/60 p-4 shadow-sm ring-1 ring-line">
-      <div className="mb-4 flex items-center justify-between border-b-2 border-court/25 pb-2">
-        <h2 className="flex items-center gap-2 text-lg font-bold text-court-dark">
-          <span className="text-xl">{icon}</span>{title}
-        </h2>
-        <span className="text-xs text-muted">מודעה</span>
-      </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {items.map((p) => (
-          <div key={p.src} className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.src} alt={p.name} className="block h-auto w-full" loading="lazy" />
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 export default function ThankYouPage() {
   const [slotInfo, setSlotInfo] = useState<string>("");
-  const [business, setBusiness] = useState<Promo[]>([]);
-  const [coaches, setCoaches] = useState<Promo[]>([]);
+  const [ads, setAds] = useState<Promo[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem("last_booking");
@@ -38,9 +15,11 @@ export default function ThankYouPage() {
       const mm = String(b.minutes_offset ?? 0).padStart(2, "0");
       setSlotInfo(`${b.club_name} — ${b.date} ${String(b.hour).padStart(2, "0")}:${mm}`);
       if (b.club_id) {
+        // All promos for this club (up to 20), reshuffled server-side on every
+        // booking so a different ad rotates into the top slots each time.
         fetch(`/api/promotions?club_id=${b.club_id}`)
           .then((r) => r.json())
-          .then((d) => { setBusiness(d.business || []); setCoaches(d.coaches || []); })
+          .then((d) => setAds(d.ads || []))
           .catch(() => {});
       }
       localStorage.removeItem("last_booking");
@@ -49,25 +28,44 @@ export default function ThankYouPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-mint p-4">
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-8 py-4">
-        {/* confirmation */}
-        <div className="w-full rounded-2xl bg-white p-8 text-center shadow-lg">
-          <div className="mb-4 text-6xl">🎾</div>
-          <h1 className="mb-2 text-2xl font-bold text-court-dark">ההזמנה אושרה!</h1>
-          {slotInfo && <p className="mb-4 text-sm text-muted">{slotInfo}</p>}
-          <p className="mb-6 text-sm text-muted">פרטי ההזמנה נשלחו לאימייל שלך.</p>
-          <div className="flex flex-col gap-3">
-            <Link href="/my-bookings" className="rounded-lg bg-court py-2 text-white transition hover:bg-court-dark">ההזמנות שלי</Link>
-            <Link href="/search" className="rounded-lg border border-court py-2 text-court transition hover:bg-mint">חפש מגרש נוסף</Link>
+    <main className="min-h-screen bg-mint p-3">
+      <div className="mx-auto flex max-w-3xl flex-col gap-3 py-2">
+        {/* Compact confirmation — kept small so the promos sit above the fold */}
+        <div className="w-full rounded-2xl bg-white p-4 text-center shadow">
+          <div className="text-3xl leading-none">🎾</div>
+          <h1 className="mt-1 text-lg font-bold text-court-dark">ההזמנה אושרה!</h1>
+          {slotInfo && <p className="mt-0.5 text-xs text-muted">{slotInfo}</p>}
+          <p className="mt-0.5 text-xs text-muted">פרטי ההזמנה נשלחו לאימייל שלך.</p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Link href="/my-bookings" className="rounded-lg bg-court px-4 py-1.5 text-sm text-white transition hover:bg-court-dark">
+              ההזמנות שלי
+            </Link>
+            <Link href="/search" className="rounded-lg border border-court px-4 py-1.5 text-sm text-court transition hover:bg-mint">
+              חפש מגרש נוסף
+            </Link>
           </div>
         </div>
 
-        {/* up to 8 local-business promotions for this club */}
-        <PromoGrid title="עסקים מומלצים בקרבת המועדון" icon="🏪" items={business} />
-
-        {/* up to 8 tennis coaches & players */}
-        <PromoGrid title="מאמנים ושחקנים" icon="🎾" items={coaches} />
+        {/* Single promo section — all ads, 3 per row. The first 6 fill the phone
+            screen without scrolling; the rest are seen by scrolling down. */}
+        {ads.length > 0 && (
+          <section className="w-full rounded-2xl bg-white/60 p-3 shadow-sm ring-1 ring-line">
+            <div className="mb-2 flex items-center justify-between border-b-2 border-court/25 pb-1.5">
+              <h2 className="flex items-center gap-1.5 text-base font-bold text-court-dark">
+                <span>🏪</span>עסקים מומלצים באזור
+              </h2>
+              <span className="text-[11px] text-muted">מודעה</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {ads.map((p) => (
+                <div key={p.src} className="overflow-hidden rounded-xl border border-line bg-white shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.src} alt={p.name} className="block aspect-square w-full object-cover" loading="lazy" />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );

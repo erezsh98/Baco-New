@@ -2,44 +2,51 @@ import { NextResponse } from "next/server";
 import { readdir } from "fs/promises";
 import path from "path";
 
-// Promotion banners for a club, in two sections, from:
-//   public/promotions/<club_id>/business/   → local businesses near the court
-//   public/promotions/<club_id>/coaches/    → tennis coaches & players
-// v1: no DB — just drop JPEG/PNG/WebP files into the folder. Up to 8 per section,
-// sorted by filename (prefix 01-, 02-, … to control order). Loose images placed
-// directly in <club_id>/ are treated as business (backward compatibility).
-const MAX_PER_SECTION = 8;
+// Promotion banners for a club, from public/promotions/<club_id>/.
+// Drop 1-20 JPEG/PNG/WebP files straight into the club's folder (no sub-sections
+// needed; any subfolders are still scanned for backward-compat). ALL of them are
+// returned (up to 20), in RANDOM order reshuffled on every request. The first 6
+// fill the phone screen (3x2, no scroll); the rest are seen by scrolling. The
+// shuffle means a different ad lands in the top slots on each booking.
+const MAX = 20;
 const IMAGE_RE = /\.(jpe?g|png|webp)$/i;
 
 type Promo = { src: string; name: string };
 
-async function listImages(dir: string, urlBase: string): Promise<Promo[]> {
+async function collect(dir: string, urlBase: string): Promise<Promo[]> {
+  let out: Promo[] = [];
+  let entries;
   try {
-    const files = (await readdir(dir))
-      .filter((f) => IMAGE_RE.test(f) && !f.startsWith("."))
-      .sort();
-    return files.map((f) => ({ src: `${urlBase}/${f}`, name: f.replace(IMAGE_RE, "") }));
+    entries = await readdir(dir, { withFileTypes: true });
   } catch {
-    return []; // folder doesn't exist
+    return out; // folder doesn't exist
   }
+  for (const e of entries) {
+    if (e.name.startsWith(".")) continue;
+    if (e.isDirectory()) {
+      out = out.concat(await collect(path.join(dir, e.name), `${urlBase}/${e.name}`));
+    } else if (IMAGE_RE.test(e.name)) {
+      out.push({ src: `${urlBase}/${e.name}`, name: e.name.replace(IMAGE_RE, "") });
+    }
+  }
+  return out;
+}
+
+function shuffle<T>(a: T[]): T[] {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const clubId = searchParams.get("club_id") || "";
-
   // digits only — prevents path traversal
-  if (!/^\d+$/.test(clubId)) {
-    return NextResponse.json({ business: [], coaches: [] });
-  }
+  if (!/^\d+$/.test(clubId)) return NextResponse.json({ ads: [] });
 
   const base = path.join(process.cwd(), "public", "promotions", clubId);
-  const [loose, businessSub, coaches] = await Promise.all([
-    listImages(base, `/promotions/${clubId}`),                               // backward-compat
-    listImages(path.join(base, "business"), `/promotions/${clubId}/business`),
-    listImages(path.join(base, "coaches"), `/promotions/${clubId}/coaches`),
-  ]);
-
-  const business = [...loose, ...businessSub].slice(0, MAX_PER_SECTION);
-  return NextResponse.json({ business, coaches: coaches.slice(0, MAX_PER_SECTION) });
+  const all = await collect(base, `/promotions/${clubId}`);
+  return NextResponse.json({ ads: shuffle(all).slice(0, MAX) });
 }
