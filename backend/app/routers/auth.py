@@ -30,9 +30,9 @@ class TokenResponse(BaseModel):
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form.username).first()
     if not user or not verify_password(form.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="אימייל או סיסמה שגויים")
     if not user.enabled:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="החשבון מושבת. אנא פנו לתמיכה.")
     token = create_access_token({"sub": str(user.id)})
     return TokenResponse(access_token=token)
 
@@ -40,7 +40,7 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(req: RegisterRequest, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == req.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="האימייל כבר רשום במערכת")
 
     user = User(
         username=req.email,

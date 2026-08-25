@@ -35,7 +35,8 @@ function RegisterForm() {
       await api.post("/auth/register", form);
       router.push(`/login?registered=1${next ? `&next=${encodeURIComponent(next)}` : ""}`);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "שגיאה בהרשמה, נסה שוב");
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : "שגיאה בהרשמה, נסו שוב");
     } finally {
       setLoading(false);
     }

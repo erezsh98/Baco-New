@@ -35,7 +35,8 @@ function LoginForm() {
       // returns to the previous page (e.g. the search results), not the login screen.
       router.replace(next || "/search");
     } catch (err: any) {
-      setError(err.response?.data?.detail || "אימייל או סיסמה שגויים");
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === "string" ? detail : "אימייל או סיסמה שגויים");
     } finally {
       setLoading(false);
     }
