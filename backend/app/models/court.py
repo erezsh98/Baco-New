@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.models.types import Date  # DATE column tolerant of production's DATETIME
 
 
 class RentalTemplate(Base):

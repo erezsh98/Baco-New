@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+from app.models.types import Date  # DATE column tolerant of production's DATETIME
 
 
 class CourtOrder(Base):
@@ -27,7 +28,10 @@ class UsersCart(Base):
     __tablename__ = "users_cart"
 
     id = Column(Integer, primary_key=True)
-    available_court_slot_id = Column(Integer, ForeignKey("available_courts_search.id"))
+    # Python attribute stays available_court_slot_id; the real production column is
+    # "available_courts_search_id" (GORM named it from the legacy UsersCart domain's
+    # `availableCourtsSearch` property, before the entity was renamed AvailableCourtSlot).
+    available_court_slot_id = Column("available_courts_search_id", Integer, ForeignKey("available_courts_search.id"))
     user_id = Column(Integer, ForeignKey("user.id"))
 
     slot = relationship("AvailableCourtSlot")
