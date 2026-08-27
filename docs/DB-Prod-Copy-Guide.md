@@ -60,8 +60,15 @@ order-independent for foreign keys and (b) targets your new DB name:
 cd "/c/path/to/the/toad/export/folder"      # folder holding the per-table .sql files
 NEWDB=baco_prod_copy_20260826               # your new DB name
 { echo "SET FOREIGN_KEY_CHECKS=0;"; echo "SET NAMES utf8mb4;"; cat *.sql; echo "SET FOREIGN_KEY_CHECKS=1;"; } \
-  | sed "s/\`play_tennis\`/\`$NEWDB\`/g" \
+  | sed "s/play_tennis/$NEWDB/g" \
   > ~/baco_import_all.sql
+```
+
+⚠️ **REQUIRED next — fix unescaped backslashes** (see the box below), or the tail
+of the file silently fails to import:
+
+```bash
+sed -i 's/\\/\\\\/g' ~/baco_import_all.sql
 ```
 
 What this does:
@@ -72,12 +79,30 @@ What this does:
   during load, the order of the table files no longer matters (a child table can
   be created/filled before its parent). This is simpler and safer than ordering
   25+ files by hand.
-- **Renames the database** `play_tennis` → your new name. The files contain
-  db-qualified names like `` `play_tennis`.`user` `` and `USE `play_tennis``;
-  the `sed` rewrites the backtick-quoted `` `play_tennis` `` to `` `$NEWDB` ``
-  so everything lands in your copy.
+- **Renames the database** `play_tennis` → your new name, everywhere it appears.
+  The files contain db-qualified names like `` `play_tennis`.`user` `` **and** a
+  bare `USE play_tennis;` on the first lines. A global `sed` catches both — a
+  backtick-only replace would miss the bare `USE`, which is dangerous: if a
+  `play_tennis` DB already exists on the machine, that `USE` silently redirects
+  the unqualified `CREATE TABLE`s into it.
+
+> **⚠️ Unescaped backslashes drop whole tables (required fix).** Toad exports a
+> literal `\` in data as a single `\` without doubling it. MySQL then reads `\'`
+> as an *escaped quote*, so that string never closes and **swallows the rest of
+> the file** — every table after it fails to load. In the real export this hit a
+> `user` row (`'אורי \'`) and silently dropped `user_role` (all role/admin
+> assignments) and `users_cart`. The `sed -i 's/\\/\\\\/g'` above doubles every
+> backslash so the values import intact and nothing is lost. (This is the same
+> cause behind an earlier import that "missed `users_cart`.")
 
 Then in Step 4, import `~/baco_import_all.sql` (instead of `~/baco_prod_dump.sql`).
+
+After importing, **verify the tail loaded**:
+```bash
+mysql -u root -p baco_prod_copy_20260826 -e "SELECT COUNT(*) AS role_links FROM user_role; SHOW TABLES LIKE 'users_cart';"
+```
+`user_role` should have thousands of rows and `users_cart` should exist. If
+`user_role` is empty / `users_cart` is missing, the backslash fix didn't run.
 
 ### Do I need to re-enable foreign keys after import?
 No extra step. The `SET FOREIGN_KEY_CHECKS=1;` at the **end** of the merged file
@@ -94,9 +119,10 @@ app) always starts with FK checks **on**.
 
 Optional — if you'd rather standardize the copy on `utf8mb4`, extend the `sed`:
 ```bash
-  ... | sed -E "s/\`play_tennis\`/\`$NEWDB\`/g; s/CHARSET=utf8([^m])/CHARSET=utf8mb4\1/g; s/utf8_unicode_ci/utf8mb4_unicode_ci/g" > ~/baco_import_all.sql
+  ... | sed -E "s/play_tennis/$NEWDB/g; s/CHARSET=utf8([^m])/CHARSET=utf8mb4\1/g; s/utf8_unicode_ci/utf8mb4_unicode_ci/g" > ~/baco_import_all.sql
 ```
-This is optional — the plain version above works.
+This is optional — the plain version above works. (Still run the backslash
+`sed -i` afterward.)
 
 ---
 
@@ -188,6 +214,41 @@ You should see `audit_log` present, your real club/user counts, and the
 
 ---
 
+## 8. Post-import data adjustments
+
+The schema now matches, but a few **data** values need adjusting so the app
+behaves correctly on real production data. They're all in
+[`prod-data-adjustments.sql`](prod-data-adjustments.sql) — run it after Steps 4–5:
+
+```bash
+mysql -u root -p baco_prod_copy_20260826 < docs/prod-data-adjustments.sql
+```
+
+**Edit the placeholder email at the top of that file first** (for the super-admin
+grant). What it does:
+
+1. **Super-admin role.** Production has only `ROLE_USER` / `ROLE_ADMIN`; the new
+   "ניהול על" screens require `ROLE_SUPER_ADMIN`. The script creates that role and
+   grants it to the account whose email you set at the top of the file.
+2. **Keep current schedules generating.** The scheduler only creates future slots
+   inside a template's `[start_effective_date, end_effective_date]`. Every active
+   template in production ends ≤ 2026, and each court has several historical active
+   periods. The script extends only the **latest period per still-open court** to
+   the `2050-12-31` "renew" sentinel (so it keeps generating and shows as an
+   "auto/renew" schedule), then deactivates the older historical periods so they
+   can't create duplicate/overlapping slots. Courts whose latest period already
+   ended (defunct clubs) are left closed — build a fresh schedule in the app if you
+   want them live.
+
+Optional tidy-ups (in the file, commented out): normalize `for_member` to `Y`, and
+collapse the stray `court_order.is_final` values `CA`/`CR` to `C`.
+
+No change is needed for ticket data — the sentinels (`total_num_of_punches = -1000`
+= unlimited מנוי, `max_orders_per_day = -1` = no daily limit) and the `ticket_type`
+values (`0`, `זיכוי`, `מנוי`, named groups) already match what the code expects.
+
+---
+
 ## Troubleshooting
 
 - `Unknown table 'column_statistics'` during export → add `--column-statistics=0`
@@ -197,15 +258,11 @@ You should see `audit_log` present, your real club/user counts, and the
   enforced, add `--ssl-mode=REQUIRED` to step 1.
 - DEFINER / SUPER error on import → use the cleaned dump from step 2.
 - GTID error on import → confirm `--set-gtid-purged=OFF` was in the step-1 dump.
-- **Syntax error on an INSERT whose text ends with a backslash** — e.g.:
-  ```sql
-  INSERT INTO `user`(`id`,`version`,...,`first_name`,`last_name`,...) VALUES (985,0,...,'אורי \','אינשטיין',...);
-  ```
-  Toad exported the literal backslash as a single `\`, and MySQL reads `\'` as an
-  *escaped quote*, so the string never closes and the statement breaks. **Manually
-  edit** the merged `~/baco_import_all.sql`: find that value and either remove the
-  stray trailing backslash (`'אורי \'` → `'אורי '`) or double it to keep the
-  backslash (`'אורי \\'`). The error message points at the line/area to fix. (This
-  is a known Toad export quirk with values ending in `\`.)
+- **Missing tables after a Toad import (`user_role` empty, `users_cart` absent),
+  or a syntax error on a row whose text ends with `\`** — this is the unescaped-
+  backslash problem. It's handled by the **required** `sed -i 's/\\/\\\\/g'` step
+  in **Step 1b** (see the ⚠️ box there); if you skipped it, run it on the merged
+  file and re-import. Toad writes a literal `\` as a single backslash, and MySQL
+  reads `\'` as an escaped quote that swallows the rest of the file.
 - Keep the dump **out of git** — leaving it in `~/` (your home dir) does that
   automatically; never add `*.sql` dumps to the repo.
