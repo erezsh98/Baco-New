@@ -87,6 +87,17 @@ def _cancel_deadline(order: CourtOrder) -> datetime | None:
     return booking_dt - timedelta(hours=club.min_hour_for_cancel)
 
 
+def _booking_started(order: CourtOrder) -> bool:
+    """Past/future cutoff by the hour, not the date: a booking is 'past' from its
+    start time onward (a 09:00 booking is past from 09:00, not from midnight)."""
+    slot = order.slot
+    if not slot:
+        return False
+    tmpl = slot.rental_template
+    start = datetime.combine(slot.curdate, time(hour=slot.hour, minute=(tmpl.minutes_offset or 0) if tmpl else 0))
+    return start < datetime.now()
+
+
 class BookingOut(BaseModel):
     id: int
     order_id: int
@@ -176,8 +187,7 @@ def list_future_bookings(db: Session = Depends(get_db), current_user: User = Dep
         .filter(CourtOrder.user_id == current_user.id, CourtOrder.is_final == "Y")
         .all()
     )
-    today = date.today()
-    return [_booking_out(o) for o in orders if o.slot and o.slot.curdate >= today]
+    return [_booking_out(o) for o in orders if o.slot and not _booking_started(o)]
 
 
 @router.get("/past", response_model=list[BookingOut])
@@ -187,15 +197,13 @@ def list_past_bookings(db: Session = Depends(get_db), current_user: User = Depen
         .filter(CourtOrder.user_id == current_user.id, CourtOrder.is_final == "Y")
         .all()
     )
-    today = date.today()
-    return [_booking_out(o) for o in orders if o.slot and o.slot.curdate < today]
+    return [_booking_out(o) for o in orders if o.slot and _booking_started(o)]
 
 
 @router.get("/my")
 def list_my_bookings(future: bool = True, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     orders = db.query(CourtOrder).filter(CourtOrder.user_id == current_user.id, CourtOrder.is_final == "Y").all()
-    today = date.today()
-    filtered = [o for o in orders if o.slot and (o.slot.curdate >= today if future else o.slot.curdate < today)]
+    filtered = [o for o in orders if o.slot and (not _booking_started(o) if future else _booking_started(o))]
     return [_booking_out(o) for o in filtered]
 
 
