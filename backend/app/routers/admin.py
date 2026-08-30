@@ -131,16 +131,20 @@ def cancel_order(order_id: int, db: Session = Depends(get_db), admin: User = Dep
     slot = order.slot
     club_id, club_name = _order_club(order)
     from app.services.email import send_cancellation_email
-    send_cancellation_email(order, is_user=False)   # to the club: "בקשה לזיכוי"
+    from app.routers.bookings import _issue_cancellation_credit, _booking_started
+    send_cancellation_email(order, is_user=True)    # cancellation notice to the user: "ביטול הזמנה"
+    _issue_cancellation_credit(order, db)           # credit the customer (skips subscription / no-op if no credit product)
     order.is_final = "C"
-    if slot:
+    # Future slot -> reopen it for others. Past slot (start time passed) -> keep
+    # the link so the cancelled booking stays traceable on that slot.
+    if slot and not _booking_started(order):
         slot.taken = None
         slot.order_id = None
     audit.record(db, admin, "order.cancel", f"בוטלה הזמנה #{order.order_id}",
                  club_id=club_id, club_name=club_name, detail={"order_id": order.order_id, "id": order.id})
     db.commit()
 
-    # TODO: send cancellation SMS + create credit ticket (not yet ported)
+    # TODO: send cancellation SMS (not yet ported)
     return {"message": "Order cancelled"}
 
 
@@ -152,9 +156,12 @@ def cancel_order_post(order_id: int, db: Session = Depends(get_db), admin: User 
     slot = order.slot
     club_id, club_name = _order_club(order)
     from app.services.email import send_cancellation_email
-    send_cancellation_email(order, is_user=False)   # to the club: "בקשה לזיכוי"
+    from app.routers.bookings import _issue_cancellation_credit, _booking_started
+    send_cancellation_email(order, is_user=True)    # cancellation notice to the user: "ביטול הזמנה"
+    _issue_cancellation_credit(order, db)           # credit the customer (skips subscription / no-op if no credit product)
     order.is_final = "C"
-    if slot:
+    # Future slot -> reopen for others; past slot (start time passed) -> keep the link (traceable).
+    if slot and not _booking_started(order):
         slot.taken = None
         slot.order_id = None
     audit.record(db, admin, "order.cancel", f"בוטלה הזמנה #{order.order_id}",
