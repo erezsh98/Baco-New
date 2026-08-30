@@ -252,7 +252,7 @@ def create_holiday(body: SpanIn, db: Session = Depends(get_db), manager: ClubMan
                 "end_date": str(body.end_date), "start_hour": body.start_hour, "to_hour": to_hour},
     )
     db.commit()
-    rebuild(db)
+    rebuild(db, club_id=manager.club_id)
     return {"message": "החסימה נוספה והזמינות עודכנה"}
 
 
@@ -281,7 +281,7 @@ def replace_holiday(body: SpanReplace, db: Session = Depends(get_db), manager: C
                 "end_date": str(body.end_date), "start_hour": body.start_hour, "to_hour": to_hour},
     )
     db.commit()
-    rebuild(db)
+    rebuild(db, club_id=manager.club_id)
     return {"message": "החסימה עודכנה והזמינות עודכנה"}
 
 
@@ -295,5 +295,5 @@ def delete_holiday(ids: list[int] = Body(..., embed=True), db: Session = Depends
         detail={"ids": ids},
     )
     db.commit()
-    rebuild(db)
+    rebuild(db, club_id=manager.club_id)
     return {"message": "החסימה נמחקה והזמינות עודכנה"}
