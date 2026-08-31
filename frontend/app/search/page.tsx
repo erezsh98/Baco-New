@@ -3,11 +3,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import ChatWidget from "@/components/agent/ChatWidget";
+import SearchForm, { SearchValues } from "@/components/SearchForm";
 
 const RESULTS_PER_PAGE = 15;
 
-type Area = { id: number; description: string };
-type Club = { id: number; club_name: string };
 type Slot = {
   id: number; club_name: string; club_id: number;
   court_number: number; surface_type: string;
@@ -19,64 +18,40 @@ type Slot = {
 
 export default function SearchPage() {
   const router = useRouter();
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [form, setForm] = useState({
-    from_date: "", to_date: "", from_hour: "", to_hour: "", area_id: "", club_id: "",
-  });
+  const [initial, setInitial] = useState<Partial<SearchValues>>({});
   const [slots, setSlots] = useState<Slot[]>([]);
   const [page, setPage] = useState(0);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    api.get("/clubs/areas").then(r => setAreas(r.data)).catch(() => {});
-  }, []);
-
-  // Prefill from URL query (e.g. arriving from the homepage hero search) and auto-search.
+  // Prefill from the URL query (e.g. arriving from the homepage hero search or a
+  // shared link) and auto-search. Runs once on mount.
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     if ([...sp.keys()].length === 0) return;
-    const initial = {
+    const init: SearchValues = {
       from_date: sp.get("from_date") || "",
-      to_date: sp.get("to_date") || sp.get("from_date") || "",
       from_hour: sp.get("from_hour") || "",
       to_hour: sp.get("to_hour") || "",
       area_id: sp.get("area_id") || "",
       club_id: sp.get("club_id") || "",
     };
-    setForm(initial);
-    if (initial.from_date) runSearch(initial);
+    setInitial(init);
+    if (init.from_date) runSearch(init);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (form.area_id) {
-      api.get(`/clubs?area_id=${form.area_id}`).then(r => setClubs(r.data)).catch(() => {});
-    } else {
-      api.get("/clubs").then(r => setClubs(r.data)).catch(() => {});
-    }
-  }, [form.area_id]);
-
-  function handle(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
-    const { name, value } = e.target;
-    // Single date field: keep to_date synced to from_date, otherwise changing the
-    // date leaves a stale earlier to_date → from_date > to_date → empty range.
-    if (name === "from_date") setForm(f => ({ ...f, from_date: value, to_date: value }));
-    else setForm(f => ({ ...f, [name]: value }));
-  }
-
-  async function runSearch(f: typeof form) {
+  async function runSearch(v: SearchValues) {
     setError(""); setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set("from_date", f.from_date);
-      params.set("to_date", f.to_date || f.from_date);
-      if (f.from_hour) params.set("from_hour", f.from_hour);
-      if (f.to_hour) params.set("to_hour", f.to_hour);
-      if (f.area_id) params.set("area_id", f.area_id);
-      if (f.club_id) params.set("club_id", f.club_id);
+      params.set("from_date", v.from_date);
+      params.set("to_date", v.from_date);
+      if (v.from_hour) params.set("from_hour", v.from_hour);
+      if (v.to_hour) params.set("to_hour", v.to_hour);
+      if (v.area_id) params.set("area_id", v.area_id);
+      if (v.club_id) params.set("club_id", v.club_id);
       const res = await api.get(`/courts/search?${params}`);
       setSlots(res.data);
       setPage(0);
@@ -88,9 +63,17 @@ export default function SearchPage() {
     }
   }
 
-  function search(e: React.FormEvent) {
-    e.preventDefault();
-    runSearch(form);
+  // Submit from the shared form: reflect the filters in the URL (shareable /
+  // bookmarkable / back-button friendly), then search in place.
+  function handleSearch(v: SearchValues) {
+    const p = new URLSearchParams();
+    p.set("from_date", v.from_date);
+    p.set("from_hour", v.from_hour);
+    p.set("to_hour", v.to_hour);
+    if (v.area_id) p.set("area_id", v.area_id);
+    if (v.club_id) p.set("club_id", v.club_id);
+    router.push(`/search?${p.toString()}`);
+    runSearch(v);
   }
 
   function book(slot: Slot) {
@@ -99,14 +82,11 @@ export default function SearchPage() {
     if (!localStorage.getItem("access_token")) {
       // Old flow: choosing a court redirects to the (secured) payment step, which
       // sends an unauthenticated user to the login screen, then continues the order.
-      // The login page offers a register link (also carrying `next`).
       router.push("/login?next=/booking/payment");
       return;
     }
     router.push("/booking/payment");
   }
-
-  const today = new Date().toISOString().split("T")[0];
 
   const totalPages = Math.max(1, Math.ceil(slots.length / RESULTS_PER_PAGE));
   const curPage = Math.min(page, totalPages - 1);
@@ -117,51 +97,16 @@ export default function SearchPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold text-court-dark mb-6 text-center">חיפוש מגרש פנוי</h1>
 
-        <form onSubmit={search} className="bg-white rounded-2xl shadow p-6 mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <div className="col-span-2 sm:col-span-1">
-            <label className="block text-sm font-medium text-ink mb-1">תאריך</label>
-            <input type="date" name="from_date" required min={today} value={form.from_date}
-              onChange={handle} className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1">שעה מ-</label>
-            <input type="number" name="from_hour" min={6} max={22} placeholder="6"
-              value={form.from_hour} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1">שעה עד-</label>
-            <input type="number" name="to_hour" min={6} max={23} placeholder="22"
-              value={form.to_hour} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1">אזור</label>
-            <select name="area_id" value={form.area_id} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-              <option value="">כל האזורים</option>
-              {areas.map(a => <option key={a.id} value={a.id}>{a.description}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-ink mb-1">מועדון</label>
-            <select name="club_id" value={form.club_id} onChange={handle}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-              <option value="">כל המועדונים</option>
-              {clubs.map(c => <option key={c.id} value={c.id}>{c.club_name}</option>)}
-            </select>
-          </div>
-          <div className="col-span-2 sm:col-span-3 flex justify-center">
-            <button type="submit" disabled={loading}
-              className="bg-court text-white px-8 py-2 rounded-lg hover:bg-court-dark transition disabled:opacity-50">
-              {loading ? "מחפש..." : "חפש"}
-            </button>
-          </div>
-        </form>
+        <div className="mb-6">
+          {/* Same hero card as the home page; re-mount (key) when the URL prefill
+              arrives so the fields pick up the incoming values. */}
+          <SearchForm key={JSON.stringify(initial)} initial={initial} onSearch={handleSearch} />
+        </div>
 
+        {loading && <p className="text-center text-muted mb-4">מחפש...</p>}
         {error && <p className="text-red-600 text-center mb-4">{error}</p>}
 
-        {searched && slots.length === 0 && (
+        {searched && !loading && slots.length === 0 && (
           <p className="text-center text-muted">לא נמצאו מגרשים פנויים לתאריך ושעה שנבחרו.</p>
         )}
 

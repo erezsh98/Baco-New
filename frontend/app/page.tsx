@@ -1,5 +1,5 @@
 import Link from "next/link";
-import HeroSearch from "@/components/HeroSearch";
+import SearchForm from "@/components/SearchForm";
 
 const features = [
   { icon: "⚡", title: "הזמנה מהירה", text: "בחירת מגרש, שעה ותשלום בכמה קליקים, בלי טלפונים." },
@@ -21,7 +21,7 @@ export default function Home() {
       {/* HERO — court search */}
       <section>
         <div className="mx-auto max-w-6xl px-5 pt-14 pb-12">
-          <HeroSearch />
+          <SearchForm />
         </div>
       </section>
 
