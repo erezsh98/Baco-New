@@ -33,7 +33,7 @@ function LoginForm() {
       // Replace (not push) so the login page is removed from history: after login
       // the browser Back — and the payment page's "חזור לחיפוש" (router.back) —
       // returns to the previous page (e.g. the search results), not the login screen.
-      router.replace(next || "/search");
+      router.replace(next || "/");
     } catch (err: any) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === "string" ? detail : "אימייל או סיסמה שגויים");
