@@ -152,31 +152,35 @@ async def pelecard_ticket_success(request: Request, db: Session = Depends(get_db
 
     approval = result[70:77] if len(result) >= 77 else ""
 
-    ticket = db.query(CustomerTicket).filter(
-        CustomerTicket.id == ticket_id, CustomerTicket.end_date == UNPAID_DATE,
-    ).first()
+    ticket = db.query(CustomerTicket).filter(CustomerTicket.id == ticket_id).first()
     if not ticket:
-        raise HTTPException(status_code=404, detail="Pending ticket not found")
+        raise HTTPException(status_code=404, detail="Ticket not found")
 
-    club_ticket = ticket.club_ticket
-    if club_ticket and club_ticket.total_num_of_punches != -1000:
-        end_date = date.today() + timedelta(days=365 * 10)
-    else:
-        permit = db.query(ClubCustomerPermittedTicket).filter(
-            ClubCustomerPermittedTicket.user_id == ticket.user_id,
-            ClubCustomerPermittedTicket.club_id == (club_ticket.club_id if club_ticket else None),
-            ClubCustomerPermittedTicket.ticket_type == (club_ticket.ticket_type.strip() if club_ticket and club_ticket.ticket_type else None),
-            ClubCustomerPermittedTicket.end_date > date.today(),
-        ).first()
-        end_date = permit.end_date if permit else date.today() + timedelta(days=365)
+    # Idempotent: Pelecard hits this callback more than once (goodUrl and
+    # ValidateLink both point here, plus possible retries). Finalize only while
+    # the ticket is still pending (UNPAID_DATE); a repeat call just redirects,
+    # instead of 404-ing on the already-consumed pending marker.
+    if ticket.end_date == UNPAID_DATE:
+        club_ticket = ticket.club_ticket
+        if club_ticket and club_ticket.total_num_of_punches != -1000:
+            end_date = date.today() + timedelta(days=365 * 10)
+        else:
+            permit = db.query(ClubCustomerPermittedTicket).filter(
+                ClubCustomerPermittedTicket.user_id == ticket.user_id,
+                ClubCustomerPermittedTicket.club_id == (club_ticket.club_id if club_ticket else None),
+                ClubCustomerPermittedTicket.ticket_type == (club_ticket.ticket_type.strip() if club_ticket and club_ticket.ticket_type else None),
+                ClubCustomerPermittedTicket.end_date > date.today(),
+            ).first()
+            end_date = permit.end_date if permit else date.today() + timedelta(days=365)
 
-    ticket.end_date = end_date
-    ticket.approval_number = approval
-    ticket.ticket_cost = club_ticket.ticket_cost if club_ticket else None
-    db.commit()
+        ticket.end_date = end_date
+        ticket.approval_number = approval
+        ticket.ticket_cost = club_ticket.ticket_cost if club_ticket else None
+        db.commit()
 
-    from app.services.email import send_ticket_purchase_confirmation
-    send_ticket_purchase_confirmation(ticket)
+        from app.services.email import send_ticket_purchase_confirmation
+        send_ticket_purchase_confirmation(ticket)
+
     return _redirect_top("/tickets")
 
 
