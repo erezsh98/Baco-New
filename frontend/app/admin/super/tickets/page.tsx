@@ -9,11 +9,11 @@ type ActiveTime = { day_of_week: number; start_hour: number; end_hour: number };
 type Ticket = {
   id: number; description: string | null; ticket_type: string | null; ticket_cost: number | null;
   total_num_of_punches: number | null; end_date: string | null; max_orders_per_day: number | null;
-  active_times: ActiveTime[];
+  is_public?: boolean; active_times: ActiveTime[];
 };
 
 const DAY_LABELS: Record<number, string> = { 1: "ראשון", 2: "שני", 3: "שלישי", 4: "רביעי", 5: "חמישי", 6: "שישי", 7: "שבת" };
-const EMPTY: any = { description: "", ticket_type: "", ticket_cost: "", total_num_of_punches: "", end_date: "", max_orders_per_day: "-1", active_times: [] as ActiveTime[] };
+const EMPTY: any = { description: "", ticket_type: "", ticket_cost: "", total_num_of_punches: "", end_date: "", max_orders_per_day: "-1", is_public: false, active_times: [] as ActiveTime[] };
 
 export default function SuperTicketsPage() {
   const router = useRouter();
@@ -46,6 +46,7 @@ export default function SuperTicketsPage() {
       description: t.description ?? "", ticket_type: t.ticket_type ?? "", ticket_cost: t.ticket_cost ?? "",
       total_num_of_punches: t.total_num_of_punches ?? "", end_date: t.end_date ?? "",
       max_orders_per_day: t.max_orders_per_day ?? "-1",
+      is_public: !!t.is_public,
       active_times: t.active_times.map(a => ({ ...a })),
     });
   }
@@ -64,7 +65,7 @@ export default function SuperTicketsPage() {
       description: form.description || null, ticket_type: form.ticket_type || null,
       ticket_cost: numOrNull(form.ticket_cost), total_num_of_punches: numOrNull(form.total_num_of_punches),
       end_date: form.end_date || null, max_orders_per_day: form.max_orders_per_day === "" ? -1 : Number(form.max_orders_per_day),
-      active_times: form.active_times,
+      is_public: !!form.is_public, active_times: form.active_times,
     };
     try {
       if (editId === 0) await api.post(`/admin/super/clubs/${club}/tickets`, payload);
@@ -117,7 +118,7 @@ export default function SuperTicketsPage() {
                   {tickets.map((t, i) => (
                     <tr key={t.id} className={i % 2 === 0 ? "bg-white" : "bg-canvas"}>
                       <td className="px-4 py-3 font-medium">{t.description || "—"}</td>
-                      <td className="px-4 py-3">{t.ticket_type || "—"}</td>
+                      <td className="px-4 py-3">{t.ticket_type || "—"}{t.is_public && <span className="mr-2 rounded-full bg-mint px-2 py-0.5 text-xs text-court-dark">פתוח לכולם</span>}</td>
                       <td className="px-4 py-3">{t.ticket_cost != null ? `₪${t.ticket_cost}` : "—"}</td>
                       <td className="px-4 py-3">{punchesLabel(t.total_num_of_punches)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">{t.end_date || "—"}</td>
@@ -171,6 +172,15 @@ export default function SuperTicketsPage() {
                   className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
               </div>
             </div>
+
+            <label className="mt-4 flex items-start gap-2 text-sm font-medium text-ink">
+              <input type="checkbox" checked={!!form.is_public}
+                onChange={e => setForm({ ...form, is_public: e.target.checked })}
+                className="mt-0.5 h-4 w-4 accent-court" />
+              <span>פתוח לכולם — כל משתמש יכול לרכוש ללא צירוף לקבוצה
+                <span className="block text-xs font-normal text-muted">דורש ערך ב&quot;סוג (ticket_type)&quot; — ההרשאה הציבורית מתאימה לפי הסוג.</span>
+              </span>
+            </label>
 
             {/* active-time windows */}
             <div className="mt-5">

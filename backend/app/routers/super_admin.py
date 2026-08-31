@@ -21,7 +21,7 @@ from app.database import get_db
 from app.models.club import Address, Area, Club, ClubManager
 from app.models.court import AvailableCourtSlot, RentalTemplate
 from app.models.order import CourtOrder  # noqa: F401 (relationship targets)
-from app.models.ticket import ClubTicket, CustomerTicket, TicketActiveTime
+from app.models.ticket import ClubCustomerPermittedTicket, ClubTicket, CustomerTicket, TicketActiveTime
 from app.models.user import Role, User, UserRole
 from app.services import audit
 from app.services.scheduler import rebuild
@@ -284,14 +284,16 @@ class TicketIn(BaseModel):
     end_date: date | None = None
     max_orders_per_day: int | None = -1
     active_times: list[ActiveTimeIn] = []
+    is_public: bool = False              # פתוח לכולם — anyone at the club may buy (public permission)
 
 
-def _ticket_out(t: ClubTicket) -> dict:
+def _ticket_out(t: ClubTicket, public_types: set[str] = frozenset()) -> dict:
     return {
         "id": t.id, "club_id": t.club_id, "description": t.description,
         "ticket_type": t.ticket_type, "ticket_cost": t.ticket_cost,
         "total_num_of_punches": t.total_num_of_punches, "end_date": str(t.end_date) if t.end_date else None,
         "max_orders_per_day": t.max_orders_per_day,
+        "is_public": (t.ticket_type or "").strip() in public_types,
         "active_times": [
             {"day_of_week": a.day_of_week, "start_hour": a.start_hour, "end_hour": a.end_hour}
             for a in t.active_times
@@ -306,9 +308,38 @@ def _apply_active_times(db: Session, t: ClubTicket, times: list[ActiveTimeIn]) -
                                 start_hour=a.start_hour, end_hour=a.end_hour))
 
 
+def _public_types(db: Session, club_id: int) -> set[str]:
+    """ticket_types that are 'public' for a club — i.e. have a permission row with
+    user_id = NULL (anyone may buy)."""
+    rows = db.query(ClubCustomerPermittedTicket.ticket_type).filter(
+        ClubCustomerPermittedTicket.club_id == club_id,
+        ClubCustomerPermittedTicket.user_id.is_(None),
+    ).all()
+    return {(r[0] or "").strip() for r in rows}
+
+
+def _sync_public_permission(db: Session, club_id: int, ticket_type: str | None, is_public: bool) -> None:
+    """A public ticket (פתוח לכולם) is modeled — like the legacy app — as a
+    ClubCustomerPermittedTicket for (club, ticket_type) with user_id = NULL and no
+    end_date, so /packages permits anyone. Create it when public, drop it
+    otherwise. No-op without a ticket_type (the permission matches on type)."""
+    tt = (ticket_type or "").strip()
+    existing = db.query(ClubCustomerPermittedTicket).filter(
+        ClubCustomerPermittedTicket.club_id == club_id,
+        ClubCustomerPermittedTicket.user_id.is_(None),
+        func.trim(ClubCustomerPermittedTicket.ticket_type) == tt,
+    ).first() if tt else None
+    if is_public and tt:
+        if not existing:
+            db.add(ClubCustomerPermittedTicket(club_id=club_id, ticket_type=tt, user_id=None, end_date=None))
+    elif existing:
+        db.delete(existing)
+
+
 @router.get("/clubs/{club_id}/tickets")
 def list_tickets(club_id: int, db: Session = Depends(get_db), su: User = Depends(require_super_admin)):
-    return [_ticket_out(t) for t in db.query(ClubTicket).filter(ClubTicket.club_id == club_id).order_by(ClubTicket.id).all()]
+    pub = _public_types(db, club_id)
+    return [_ticket_out(t, pub) for t in db.query(ClubTicket).filter(ClubTicket.club_id == club_id).order_by(ClubTicket.id).all()]
 
 
 @router.post("/clubs/{club_id}/tickets", status_code=201)
@@ -324,11 +355,13 @@ def create_ticket(club_id: int, body: TicketIn, db: Session = Depends(get_db), s
     db.add(t)
     db.flush()
     _apply_active_times(db, t, body.active_times)
+    _sync_public_permission(db, club_id, t.ticket_type, body.is_public)
     audit.record(db, su, "ticket.create",
-                 f"נוצרה כרטיסייה/קבוצה: {body.description or body.ticket_type} — {club.club_name}",
+                 f"נוצרה כרטיסייה/קבוצה: {body.description or body.ticket_type} — {club.club_name}"
+                 + (" (פתוח לכולם)" if body.is_public else ""),
                  club_id=club_id, club_name=club.club_name)
     db.commit()
-    return _ticket_out(t)
+    return _ticket_out(t, _public_types(db, club_id))
 
 
 @router.put("/tickets/{ticket_id}")
@@ -343,12 +376,14 @@ def update_ticket(ticket_id: int, body: TicketIn, db: Session = Depends(get_db),
     t.end_date = body.end_date
     t.max_orders_per_day = body.max_orders_per_day if body.max_orders_per_day is not None else -1
     _apply_active_times(db, t, body.active_times)
+    _sync_public_permission(db, t.club_id, t.ticket_type, body.is_public)
     club = t.club
     audit.record(db, su, "ticket.update",
-                 f"עודכנה כרטיסייה/קבוצה: {body.description or body.ticket_type} — {club.club_name if club else ''}",
+                 f"עודכנה כרטיסייה/קבוצה: {body.description or body.ticket_type} — {club.club_name if club else ''}"
+                 + (" (פתוח לכולם)" if body.is_public else ""),
                  club_id=t.club_id, club_name=club.club_name if club else None)
     db.commit()
-    return _ticket_out(t)
+    return _ticket_out(t, _public_types(db, t.club_id))
 
 
 @router.delete("/tickets/{ticket_id}")
