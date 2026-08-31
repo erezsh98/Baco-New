@@ -19,8 +19,11 @@ export default function Home() {
   return (
     <main>
       {/* HERO — court search */}
-      <section>
-        <div className="mx-auto max-w-6xl px-5 pt-14 pb-12">
+      <section className="relative overflow-hidden">
+        {/* Court photo, clearly visible but softened toward the page so the card still reads. */}
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[url('/court-hero.webp')] bg-cover bg-center opacity-60" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-gradient-to-b from-canvas/25 via-canvas/40 to-canvas" />
+        <div className="relative mx-auto max-w-6xl px-5 pt-14 pb-12">
           <SearchForm />
         </div>
       </section>
