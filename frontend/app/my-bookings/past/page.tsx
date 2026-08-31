@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
 
@@ -9,11 +9,22 @@ type Booking = {
   is_final: string | null; amount: number | null; refund_eligible: boolean;
 };
 
+const MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+  "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+const ymKey = (date: string) => date.slice(0, 7);                 // "YYYY-MM"
+const ymLabel = (key: string) => {
+  const [y, m] = key.split("-");
+  return `${MONTHS[parseInt(m, 10) - 1]} ${y}`;
+};
+
 export default function PastBookingsPage() {
+  const currentYM = new Date().toISOString().slice(0, 7);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [msgOk, setMsgOk] = useState(false);
+  // which month groups are expanded (the current month starts open).
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set([currentYM]));
 
   // refund modal state
   const [refundFor, setRefundFor] = useState<Booking | null>(null);
@@ -33,6 +44,25 @@ export default function PastBookingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Group by year-month, newest group first (bookings are already sorted desc).
+  const groups = useMemo(() => {
+    const map = new Map<string, Booking[]>();
+    for (const b of bookings) {
+      const k = ymKey(b.date);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(b);
+    }
+    return [...map.entries()];
+  }, [bookings]);
+
+  function toggle(key: string) {
+    setExpanded(s => {
+      const n = new Set(s);
+      n.has(key) ? n.delete(key) : n.add(key);
+      return n;
+    });
+  }
+
   function openRefund(b: Booking) {
     setRefundFor(b); setReason(""); setModalErr(""); setMsg("");
   }
@@ -51,6 +81,29 @@ export default function PastBookingsPage() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function BookingRow({ b }: { b: Booking }) {
+    return (
+      <div className="flex items-center justify-between gap-4 px-4 py-3">
+        <div>
+          <p className="font-semibold text-ink">{b.club_name} — מגרש {b.court_number}</p>
+          <p className="text-sm text-muted">{b.date} | שעה {String(b.hour).padStart(2, "0")}:{String(b.minutes_offset ?? 0).padStart(2, "0")}</p>
+          <p className="text-sm text-court font-medium">₪{b.amount}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {b.refund_eligible && (
+            <button onClick={() => openRefund(b)}
+              className="bg-court text-white px-4 py-2 rounded-lg text-sm hover:bg-court-dark transition">
+              בקשת זיכוי
+            </button>
+          )}
+          <span className={`text-xs px-2 py-1 rounded-full ${b.is_final === "Y" ? "bg-mint text-muted" : "bg-red-100 text-red-600"}`}>
+            {b.is_final === "Y" ? "הושלם" : "מבוטל"}
+          </span>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -73,26 +126,30 @@ export default function PastBookingsPage() {
         )}
 
         <div className="space-y-3">
-          {bookings.map(b => (
-            <div key={b.id} className="bg-white rounded-xl shadow p-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="font-semibold text-ink">{b.club_name} — מגרש {b.court_number}</p>
-                <p className="text-sm text-muted">{b.date} | שעה {String(b.hour).padStart(2, "0")}:{String(b.minutes_offset ?? 0).padStart(2, "0")}</p>
-                <p className="text-sm text-court font-medium">₪{b.amount}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                {b.refund_eligible && (
-                  <button onClick={() => openRefund(b)}
-                    className="bg-court text-white px-4 py-2 rounded-lg text-sm hover:bg-court-dark transition">
-                    בקשת זיכוי
-                  </button>
+          {groups.map(([key, items]) => {
+            const isCurrent = key === currentYM;
+            const open = expanded.has(key);
+            return (
+              <div key={key} className="rounded-xl overflow-hidden border border-line bg-white shadow-sm">
+                <button
+                  onClick={() => toggle(key)}
+                  aria-expanded={open}
+                  className="w-full flex items-center justify-between px-4 py-3 text-right hover:bg-mint/40 transition"
+                >
+                  <span className="font-bold text-court-dark">
+                    {isCurrent ? "החודש" : ymLabel(key)}
+                    <span className="mr-2 text-sm font-normal text-muted">({items.length})</span>
+                  </span>
+                  <span className={`text-court-dark transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+                </button>
+                {open && (
+                  <div className="divide-y divide-line border-t border-line">
+                    {items.map(b => <BookingRow key={b.id} b={b} />)}
+                  </div>
                 )}
-                <span className={`text-xs px-2 py-1 rounded-full ${b.is_final === "Y" ? "bg-mint text-muted" : "bg-red-100 text-red-600"}`}>
-                  {b.is_final === "Y" ? "הושלם" : "מבוטל"}
-                </span>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
