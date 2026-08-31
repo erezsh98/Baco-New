@@ -30,7 +30,9 @@ def build_pelecard_iframe(order_id: int, amount_nis: float, club_uname: str, pur
     Initialize a Pelecard payment and return the payment-form **HTML** to embed
     (the caller renders it inside an <iframe srcdoc>).
     purchase_type: 1 = ticket, 2 = court rental. amount_nis is in NIS (→ agorot).
-    Mirrors the legacy CreditCardService.buidPelecardIframe parameter set exactly.
+    Mirrors the legacy CreditCardService.buidPelecardIframe parameter set, except
+    it drops frmAction=CreateToken so charges are regular one-time sales rather
+    than tokenized "הוראת קבע" transactions (the token was never reused).
     """
     creds = CLUB_CREDENTIALS.get(club_uname)
     if not creds or not creds.get("term"):
@@ -67,7 +69,10 @@ def build_pelecard_iframe(order_id: int, amount_nis: float, club_uname: str, pur
         "id": "Must",                     # customer must enter ID number
         "cvv2": "Must",                   # customer must enter CVV
         "shopNo": "001",
-        "frmAction": "CreateToken",
+        # No frmAction=CreateToken: that tokenizes the card ("saved card"), which
+        # makes Pelecard record the charge as "הוראת קבע". Omitting it charges a
+        # regular one-time sale (עסקה רגילה). The token was stored on order.token
+        # but never used for a follow-up charge/refund, so nothing depends on it.
         "J5": "false",
         "keepSSL": "false",
         "DesignInput": "false",
