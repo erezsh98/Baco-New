@@ -1,8 +1,27 @@
 "use client";
 import { useState } from "react";
-import { MessageCircle, X, Send } from "lucide-react";
+import { X, Send } from "lucide-react";
 
 type Message = { role: "user" | "assistant"; text: string };
+
+// Chat-bot icon: a robot face inside a speech bubble. Uses currentColor so the
+// button can tint it (court green). Eyes are knocked out to the button's bg.
+function BotIcon({ size = 30 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      {/* side "ears" */}
+      <circle cx="2.4" cy="10.5" r="1.4" fill="currentColor" />
+      <circle cx="21.6" cy="10.5" r="1.4" fill="currentColor" />
+      {/* head / speech bubble */}
+      <rect x="3.5" y="3.5" width="17" height="12.5" rx="5.5" fill="currentColor" />
+      {/* tail (bottom-left) */}
+      <path d="M8 14.5 L8 20 L13 15.5 Z" fill="currentColor" />
+      {/* eyes */}
+      <circle cx="9.5" cy="9.9" r="1.7" fill="#fff" />
+      <circle cx="14.5" cy="9.9" r="1.7" fill="#fff" />
+    </svg>
+  );
+}
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -15,9 +34,15 @@ export default function ChatWidget() {
     const userMsg: Message = { role: "user", text: input };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
-    setLoading(true);
 
     const token = localStorage.getItem("access_token");
+    // Login gate: the assistant is for signed-in users only.
+    if (!token) {
+      setMessages((prev) => [...prev, { role: "assistant", text: "כדי להשתמש בעוזר יש להתחבר לחשבון." }]);
+      return;
+    }
+    setLoading(true);
+
     const apiMessages = [...messages, userMsg].map((m) => ({
       role: m.role,
       content: m.text,
@@ -30,6 +55,11 @@ export default function ChatWidget() {
         body: JSON.stringify({ messages: apiMessages, token }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        // login gate (401) / rate limit (429) / other — show the server message
+        setMessages((prev) => [...prev, { role: "assistant", text: data.error || "שגיאה. נסו שוב." }]);
+        return;
+      }
       const text = data.content?.find((b: { type: string }) => b.type === "text")?.text || "סליחה, לא הצלחתי לעבד את הבקשה.";
       setMessages((prev) => [...prev, { role: "assistant", text }]);
     } catch {
@@ -40,11 +70,11 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 left-6 z-50">
+    <div className="fixed bottom-6 right-6 z-50">
       {open ? (
         <div className="bg-white rounded-2xl shadow-2xl w-80 max-w-[calc(100vw-3rem)] flex flex-col" style={{ height: 420 }}>
           <div className="bg-court text-white px-4 py-3 rounded-t-2xl flex justify-between items-center">
-            <span className="font-semibold">עוזר TennisLine</span>
+            <span className="font-semibold">עוזר</span>
             <button onClick={() => setOpen(false)}><X size={18} /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -76,9 +106,10 @@ export default function ChatWidget() {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="bg-court text-white rounded-full p-4 shadow-xl hover:bg-court-dark transition"
+          aria-label="פתח את העוזר החכם"
+          className="grid place-items-center h-14 w-14 rounded-full bg-white text-court shadow-xl ring-1 ring-court/15 hover:bg-mint hover:text-court-dark transition"
         >
-          <MessageCircle size={24} />
+          <BotIcon size={30} />
         </button>
       )}
     </div>

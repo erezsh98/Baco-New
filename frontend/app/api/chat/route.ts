@@ -2,6 +2,21 @@ import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const MODEL = "claude-haiku-4-5";
+
+// Simple in-memory per-user rate limit. Fine for a single frontend instance;
+// if the frontend is ever scaled out, move this to a shared store (Redis).
+const WINDOW_MS = 60_000;    // 1-minute sliding window
+const MAX_PER_WINDOW = 5;    // messages per user per window
+const hits = new Map<number, number[]>();
+function rateLimited(userId: number): boolean {
+  const now = Date.now();
+  const recent = (hits.get(userId) || []).filter(t => now - t < WINDOW_MS);
+  if (recent.length >= MAX_PER_WINDOW) { hits.set(userId, recent); return true; }
+  recent.push(now);
+  hits.set(userId, recent);
+  return false;
+}
 
 const tools: Anthropic.Tool[] = [
   {
@@ -22,20 +37,14 @@ const tools: Anthropic.Tool[] = [
   {
     name: "get_my_bookings",
     description: "Get the user's upcoming bookings",
-    input_schema: {
-      type: "object" as const,
-      properties: {},
-      required: [],
-    },
+    input_schema: { type: "object" as const, properties: {}, required: [] },
   },
   {
     name: "cancel_booking",
     description: "Cancel a future booking by order ID",
     input_schema: {
       type: "object" as const,
-      properties: {
-        order_id: { type: "number", description: "The booking order ID" },
-      },
+      properties: { order_id: { type: "number", description: "The booking order ID" } },
       required: ["order_id"],
     },
   },
@@ -43,9 +52,31 @@ const tools: Anthropic.Tool[] = [
 
 export async function POST(req: NextRequest) {
   const { messages, token } = await req.json();
+  const backendUrl = process.env.BACKEND_URL || "http://localhost:8000";
+
+  // Login gate — verify the session against the backend BEFORE spending any
+  // Anthropic tokens, so anonymous/forged callers can't run up the bill.
+  if (!token) {
+    return NextResponse.json({ error: "כדי להשתמש בעוזר יש להתחבר לחשבון." }, { status: 401 });
+  }
+  let userId: number;
+  try {
+    const meRes = await fetch(`${backendUrl}/users/me`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!meRes.ok) {
+      return NextResponse.json({ error: "כדי להשתמש בעוזר יש להתחבר לחשבון." }, { status: 401 });
+    }
+    userId = (await meRes.json()).id;
+  } catch {
+    return NextResponse.json({ error: "שגיאת אימות. נסו שוב מאוחר יותר." }, { status: 502 });
+  }
+
+  // Rate limit per authenticated user.
+  if (rateLimited(userId)) {
+    return NextResponse.json({ error: "שלחת יותר מדי הודעות. המתן/י רגע ונסה/י שוב." }, { status: 429 });
+  }
 
   const response = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: MODEL,
     max_tokens: 1024,
     system: `אתה עוזר חכם לאתר TennisLine - מערכת הזמנת מגרשי טניס.
 עזור למשתמשים למצוא ולהזמין מגרשי טניס, לצפות בהזמנות שלהם ולבטל הזמנות.
@@ -61,7 +92,6 @@ export async function POST(req: NextRequest) {
       if (block.type === "tool_use") {
         let result = {};
         try {
-          const backendUrl = process.env.BACKEND_URL || "http://localhost:8000";
           const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
           if (block.name === "search_courts") {
@@ -88,7 +118,7 @@ export async function POST(req: NextRequest) {
 
     // Continue conversation with tool results
     const followUp = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      model: MODEL,
       max_tokens: 1024,
       system: `אתה עוזר חכם לאתר TennisLine. ענה תמיד בעברית.`,
       tools,
