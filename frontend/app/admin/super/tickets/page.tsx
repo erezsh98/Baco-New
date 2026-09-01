@@ -24,11 +24,13 @@ export default function SuperTicketsPage() {
   const [form, setForm] = useState<any>({ ...EMPTY });
   const [msg, setMsg] = useState(""); const [msgOk, setMsgOk] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [clubQuery, setClubQuery] = useState("");     // searchable club dropdown
+  const [clubOpen, setClubOpen] = useState(false);
 
   useEffect(() => {
     api.get("/users/me").then(r => {
       if (!r.data.is_super_admin) { router.push("/search"); return; }
-      api.get("/admin/super/clubs").then(c => { setClubs(c.data); if (c.data.length) setClub(c.data[0].id); }).catch(() => {});
+      api.get("/admin/super/clubs").then(c => { setClubs(c.data); if (c.data.length) { setClub(c.data[0].id); setClubQuery(c.data[0].club_name); } }).catch(() => {});
     }).catch(() => router.push("/login"));
   }, []);
 
@@ -84,6 +86,10 @@ export default function SuperTicketsPage() {
 
   const punchesLabel = (n: number | null) => n === -1000 ? "ללא הגבלה" : (n ?? "—");
 
+  function pickClub(c: Club) { setClub(c.id); setClubQuery(c.club_name); setClubOpen(false); }
+  const cq = clubQuery.trim().toLowerCase();
+  const clubMatches = cq ? clubs.filter(c => c.club_name.toLowerCase().includes(cq)) : clubs;
+
   return (
     <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-4xl mx-auto">
@@ -94,10 +100,28 @@ export default function SuperTicketsPage() {
 
         <div className="bg-white rounded-xl shadow p-4 mb-4">
           <label className="block text-sm font-medium text-ink mb-1">מועדון</label>
-          <select value={club ?? ""} onChange={e => setClub(Number(e.target.value))}
-            className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-            {clubs.map(c => <option key={c.id} value={c.id}>{c.club_name}</option>)}
-          </select>
+          <div className="relative">
+            <input
+              value={clubQuery}
+              onChange={e => { setClubQuery(e.target.value); setClubOpen(true); }}
+              onFocus={e => { setClubOpen(true); e.target.select(); }}
+              onBlur={() => setTimeout(() => setClubOpen(false), 150)}
+              placeholder="חיפוש מועדון…"
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+            {clubOpen && (
+              <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-line bg-white shadow-lg">
+                {clubMatches.length === 0 && <li className="px-3 py-2 text-sm text-muted">לא נמצאו מועדונים</li>}
+                {clubMatches.map(c => (
+                  <li key={c.id}>
+                    <button type="button" onMouseDown={() => pickClub(c)}
+                      className={`w-full text-right px-3 py-2 text-sm hover:bg-mint ${c.id === club ? "bg-mint/60 font-semibold" : ""}`}>
+                      {c.club_name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         {msg && <div className={`mb-4 rounded-lg px-4 py-3 text-sm font-medium ${msgOk ? "bg-mint text-court-dark border border-court/30" : "bg-red-50 text-red-700 border border-red-300"}`}>{msg}</div>}

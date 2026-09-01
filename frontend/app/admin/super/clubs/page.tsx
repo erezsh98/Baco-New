@@ -28,6 +28,7 @@ export default function SuperClubsPage() {
   const [msg, setMsg] = useState(""); const [msgOk, setMsgOk] = useState(false);
   const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState<number | "all" | null>(null);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     api.get("/users/me").then(r => {
@@ -85,6 +86,12 @@ export default function SuperClubsPage() {
     } finally { setRebuilding(null); }
   }
 
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? clubs.filter(c => [c.club_name, c.area_name, c.city, c.contact_name, c.contact_phone, c.u_name]
+        .some(v => (v || "").toLowerCase().includes(q)))
+    : clubs;
+
   const F = (label: string, name: string, type = "text") => (
     <div>
       <label className="block text-sm font-medium text-ink mb-1">{label}</label>
@@ -105,12 +112,16 @@ export default function SuperClubsPage() {
 
         {editId === null ? (
           <>
-            <div className="flex justify-end gap-2 mb-3">
-              <button onClick={() => rebuild(null, "כל המועדונים")} disabled={rebuilding !== null}
-                className="border-2 border-court text-court px-4 py-2 rounded-lg hover:bg-mint text-sm font-semibold disabled:opacity-50">
-                {rebuilding === "all" ? "מעדכן..." : "עדכן זמינות לכל המועדונים"}
-              </button>
-              <button onClick={openNew} className="bg-court text-white px-4 py-2 rounded-lg hover:bg-court-dark text-sm font-semibold">מועדון חדש</button>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <input value={query} onChange={e => setQuery(e.target.value)} placeholder="חיפוש מועדון (שם, אזור, עיר, איש קשר)…"
+                className="w-full sm:w-72 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-court" />
+              <div className="flex gap-2">
+                <button onClick={() => rebuild(null, "כל המועדונים")} disabled={rebuilding !== null}
+                  className="border-2 border-court text-court px-4 py-2 rounded-lg hover:bg-mint text-sm font-semibold disabled:opacity-50">
+                  {rebuilding === "all" ? "מעדכן..." : "עדכן זמינות לכל המועדונים"}
+                </button>
+                <button onClick={openNew} className="bg-court text-white px-4 py-2 rounded-lg hover:bg-court-dark text-sm font-semibold">מועדון חדש</button>
+              </div>
             </div>
             <div className="bg-white rounded-xl shadow overflow-x-auto">
               <table className="w-full text-sm">
@@ -120,7 +131,7 @@ export default function SuperClubsPage() {
                   <th className="px-4 py-3 text-right">חלון ימים</th><th className="px-4 py-3"></th>
                 </tr></thead>
                 <tbody>
-                  {clubs.map((c, i) => (
+                  {filtered.map((c, i) => (
                     <tr key={c.id} className={i % 2 === 0 ? "bg-white" : "bg-canvas"}>
                       <td className="px-4 py-3 font-medium">{c.club_name}</td>
                       <td className="px-4 py-3">{c.area_name || "—"}</td>
@@ -135,6 +146,11 @@ export default function SuperClubsPage() {
                       </td>
                     </tr>
                   ))}
+                  {filtered.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-muted">
+                      {clubs.length === 0 ? "אין מועדונים." : `לא נמצאו מועדונים התואמים ל"${query}".`}
+                    </td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
