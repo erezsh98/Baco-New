@@ -15,6 +15,8 @@ export default function BuyTicketPage() {
   const [loading, setLoading] = useState(false);
   const [iframeHtml, setIframeHtml] = useState("");
   const [error, setError] = useState("");
+  const [clubQuery, setClubQuery] = useState("");     // searchable club dropdown
+  const [clubOpen, setClubOpen] = useState(false);
 
   useEffect(() => {
     api.get("/clubs").then(r => setClubs(r.data)).catch(() => {});
@@ -40,6 +42,12 @@ export default function BuyTicketPage() {
     }
   }
 
+  function pickClub(c: Club) {
+    setSelectedClub(c.id); setSelected(null); setClubQuery(c.club_name); setClubOpen(false);
+  }
+  const cq = clubQuery.trim().toLowerCase();
+  const clubMatches = cq ? clubs.filter(c => c.club_name.toLowerCase().includes(cq)) : clubs;
+
   if (iframeHtml) {
     return (
       <main className="min-h-screen bg-mint p-4">
@@ -60,11 +68,28 @@ export default function BuyTicketPage() {
         <div className="bg-white rounded-2xl shadow p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-ink mb-1">מועדון</label>
-            <select value={selectedClub ?? ""} onChange={e => { setSelectedClub(Number(e.target.value)); setSelected(null); }}
-              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
-              <option value="">בחר מועדון</option>
-              {clubs.map(c => <option key={c.id} value={c.id}>{c.club_name}</option>)}
-            </select>
+            <div className="relative">
+              <input
+                value={clubQuery}
+                onChange={e => { setClubQuery(e.target.value); setClubOpen(true); }}
+                onFocus={e => { setClubOpen(true); e.target.select(); }}
+                onBlur={() => setTimeout(() => setClubOpen(false), 150)}
+                placeholder="חיפוש מועדון…"
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+              {clubOpen && (
+                <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-line bg-white shadow-lg">
+                  {clubMatches.length === 0 && <li className="px-3 py-2 text-sm text-muted">לא נמצאו מועדונים</li>}
+                  {clubMatches.map(c => (
+                    <li key={c.id}>
+                      <button type="button" onMouseDown={() => pickClub(c)}
+                        className={`w-full text-right px-3 py-2 text-sm hover:bg-mint ${c.id === selectedClub ? "bg-mint/60 font-semibold" : ""}`}>
+                        {c.club_name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           {packages.length > 0 && (
