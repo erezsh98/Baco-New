@@ -2,7 +2,6 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import ChatWidget from "@/components/agent/ChatWidget";
 import SearchForm, { SearchValues } from "@/components/SearchForm";
 
 const RESULTS_PER_PAGE = 15;
@@ -166,7 +165,6 @@ export default function SearchPage() {
           </div>
         )}
       </div>
-      <ChatWidget />
     </main>
   );
 }

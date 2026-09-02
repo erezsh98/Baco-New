@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { User, ChevronDown } from "lucide-react";
 import api from "@/lib/api";
 import ClubSwitcher from "@/components/ClubSwitcher";
+import ChatWidget from "@/components/agent/ChatWidget";
 
 export default function Navbar() {
   const router = useRouter();
@@ -66,14 +67,17 @@ export default function Navbar() {
           <img src="/logo-ball.png" alt="BACO" className="h-12 w-12" width={48} height={48} />
         </Link>
 
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="sm:hidden p-2 text-court-dark text-xl leading-none"
-          aria-label="תפריט"
-          aria-expanded={menuOpen}
-        >
-          ☰
-        </button>
+        <div className="flex items-center gap-1">
+          {loggedIn && <ChatWidget />}
+
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="sm:hidden p-2 text-court-dark text-xl leading-none"
+            aria-label="תפריט"
+            aria-expanded={menuOpen}
+          >
+            ☰
+          </button>
 
         <div className={`${menuOpen ? "flex" : "hidden"} sm:flex flex-col sm:flex-row absolute sm:static top-16 right-0 left-0 bg-canvas sm:bg-transparent border-b border-line sm:border-0 z-50 sm:items-center gap-3 sm:gap-7 px-5 sm:px-0 py-4 sm:py-0`}>
           <Link href="/" onClick={closeMenus} className={linkCls}>חיפוש מגרש</Link>
@@ -154,6 +158,7 @@ export default function Navbar() {
               <Link href="/register" onClick={closeMenus} className="py-2 px-4 text-sm font-bold rounded-xl bg-court text-white hover:bg-court-dark transition-colors">הרשמה</Link>
             </div>
           )}
+        </div>
         </div>
       </div>
     </nav>

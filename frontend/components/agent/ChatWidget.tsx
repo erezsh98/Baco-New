@@ -70,12 +70,23 @@ export default function ChatWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      {open ? (
-        <div className="bg-white rounded-2xl shadow-2xl w-80 max-w-[calc(100vw-3rem)] flex flex-col" style={{ height: 420 }}>
+    <>
+      {/* Launcher — inline; placed in the navbar next to the menu icon. */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="עוזר חכם"
+        aria-expanded={open}
+        className="grid place-items-center h-9 w-9 rounded-full text-court hover:bg-mint hover:text-court-dark transition"
+      >
+        <BotIcon size={26} />
+      </button>
+
+      {/* Chat panel — opens at the top-left, just under the navbar. */}
+      {open && (
+        <div className="fixed top-16 left-3 z-50 w-80 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl ring-1 ring-line flex flex-col" style={{ height: 420 }}>
           <div className="bg-court text-white px-4 py-3 rounded-t-2xl flex justify-between items-center">
             <span className="font-semibold">עוזר</span>
-            <button onClick={() => setOpen(false)}><X size={18} /></button>
+            <button onClick={() => setOpen(false)} aria-label="סגור"><X size={18} /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {messages.length === 0 && (
@@ -103,15 +114,7 @@ export default function ChatWidget() {
             </button>
           </div>
         </div>
-      ) : (
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="פתח את העוזר החכם"
-          className="grid place-items-center h-14 w-14 rounded-full bg-white text-court shadow-xl ring-1 ring-court/15 hover:bg-mint hover:text-court-dark transition"
-        >
-          <BotIcon size={30} />
-        </button>
       )}
-    </div>
+    </>
   );
 }
