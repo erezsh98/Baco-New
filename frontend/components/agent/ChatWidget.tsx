@@ -43,10 +43,11 @@ export default function ChatWidget() {
     }
     setLoading(true);
 
+    // Remember only the last 5 messages of context.
     const apiMessages = [...messages, userMsg].map((m) => ({
       role: m.role,
       content: m.text,
-    }));
+    })).slice(-5);
 
     try {
       const res = await fetch("/api/chat", {

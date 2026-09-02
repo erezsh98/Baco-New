@@ -75,14 +75,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "שלחת יותר מדי הודעות. המתן/י רגע ונסה/י שוב." }, { status: 429 });
   }
 
+  // Conversation memory: keep only the last 5 messages as context (and it must
+  // start with a user turn for the Anthropic API).
+  const history = (Array.isArray(messages) ? messages : []).slice(-5);
+  while (history.length && history[0].role !== "user") history.shift();
+
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: 300,
     system: `אתה עוזר חכם לאתר TennisLine - מערכת הזמנת מגרשי טניס.
 עזור למשתמשים למצוא ולהזמין מגרשי טניס, לצפות בהזמנות שלהם ולבטל הזמנות.
 ענה תמיד בעברית. היה קצר וברור.`,
     tools,
-    messages,
+    messages: history,
   });
 
   // Handle tool calls by forwarding to backend API
@@ -119,11 +124,11 @@ export async function POST(req: NextRequest) {
     // Continue conversation with tool results
     const followUp = await client.messages.create({
       model: MODEL,
-      max_tokens: 1024,
+      max_tokens: 300,
       system: `אתה עוזר חכם לאתר TennisLine. ענה תמיד בעברית.`,
       tools,
       messages: [
-        ...messages,
+        ...history,
         { role: "assistant", content: response.content },
         { role: "user", content: toolResults },
       ],
