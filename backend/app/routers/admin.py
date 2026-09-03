@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import require_admin, require_club_manager
 from app.database import get_db
 from app.models.club import Club, ClubManager
-from app.models.ticket import ClubCustomerPermittedTicket
+from app.models.ticket import ClubCustomerPermittedTicket, ClubTicket, CustomerTicket
 from app.models.court import AvailableCourtSlot
 from app.models.order import CourtOrder
 from app.models.user import User
@@ -111,6 +111,102 @@ def club_orders(
     result.sort(key=lambda r: r["court_number"])
     result.sort(key=lambda r: (r["date"], r["hour"]), reverse=True)
     return result
+
+
+def _user_name(u) -> str:
+    return f"{u.first_name} {u.last_name}".strip() if u else ""
+
+
+@router.get("/receipts")
+def receipts_report(
+    from_date: date | None = None,
+    to_date: date | None = None,
+    db: Session = Depends(get_db),
+    manager: ClubManager = Depends(require_club_manager),
+):
+    """דוח תקבולים — all money received by the manager's club between dates.
+
+    Two sources, keyed on the date the money came in:
+      • Credit-card court bookings — every credit-card order that was actually
+        charged (amount > 0), INCLUDING ones cancelled afterwards, since the
+        money was received. Dated by order_date.
+      • Ticket / punch-card purchases — every paid ticket (has an approval,
+        cost > 0). A ticket has no stored purchase date, so it is derived from
+        its fixed 10-year validity: purchase_date = end_date - 10 years.
+    """
+    from app.routers.tickets import UNPAID_DATE, TICKET_VALIDITY, ticket_purchase_date
+
+    # --- Credit-card court bookings ---------------------------------------
+    credit_q = (
+        db.query(CourtOrder)
+        .join(AvailableCourtSlot, CourtOrder.id == AvailableCourtSlot.order_id)
+        .filter(
+            CourtOrder.customer_ticket_id.is_(None),   # credit card, not a ticket
+            CourtOrder.is_final.in_(["Y", "C"]),        # charged; cancelled-after still counts
+            CourtOrder.amount > 0,
+        )
+    )
+    if from_date:
+        credit_q = credit_q.filter(CourtOrder.order_date >= from_date)
+    if to_date:
+        credit_q = credit_q.filter(CourtOrder.order_date <= to_date)
+
+    credit_orders = []
+    for o in credit_q.all():
+        slot = o.slot
+        tmpl = slot.rental_template if slot else None
+        if not tmpl or tmpl.club_id != manager.club_id:
+            continue
+        credit_orders.append({
+            "date": str(o.order_date) if o.order_date else "",
+            "order_id": o.order_id,
+            "user_name": _user_name(o.user),
+            "court_number": tmpl.court_number,
+            "amount": o.amount or 0,
+            "status": "canceled" if o.is_final == "C" else "completed",
+        })
+    credit_orders.sort(key=lambda r: r["date"], reverse=True)
+
+    # --- Ticket / punch-card purchases ------------------------------------
+    # purchase_date in [from, to]  <=>  end_date in [from + validity, to + validity]
+    tickets_q = (
+        db.query(CustomerTicket)
+        .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
+        .filter(
+            ClubTicket.club_id == manager.club_id,
+            CustomerTicket.approval_number.isnot(None),   # paid (approved)
+            CustomerTicket.end_date != UNPAID_DATE,        # finalized
+            CustomerTicket.ticket_cost > 0,                # money received (excludes free זיכוי)
+        )
+    )
+    if from_date:
+        tickets_q = tickets_q.filter(CustomerTicket.end_date >= from_date + TICKET_VALIDITY)
+    if to_date:
+        tickets_q = tickets_q.filter(CustomerTicket.end_date <= to_date + TICKET_VALIDITY)
+
+    ticket_purchases = []
+    for ct in tickets_q.all():
+        pdate = ticket_purchase_date(ct)
+        club_ticket = ct.club_ticket
+        ticket_purchases.append({
+            "date": str(pdate) if pdate else "",
+            "user_name": _user_name(ct.user),
+            "description": (club_ticket.description if club_ticket else None)
+                or (club_ticket.ticket_type if club_ticket else None) or "כרטיסייה",
+            "amount": ct.ticket_cost or 0,
+            "approval_number": ct.approval_number or "",
+        })
+    ticket_purchases.sort(key=lambda r: r["date"], reverse=True)
+
+    credit_total = round(sum(r["amount"] for r in credit_orders), 2)
+    ticket_total = round(sum(r["amount"] for r in ticket_purchases), 2)
+    return {
+        "credit_orders": credit_orders,
+        "ticket_purchases": ticket_purchases,
+        "credit_total": credit_total,
+        "ticket_total": ticket_total,
+        "grand_total": round(credit_total + ticket_total, 2),
+    }
 
 
 @router.delete("/orders/{order_id}")

@@ -107,6 +107,7 @@ export default function AdminPage() {
           <div className="flex flex-wrap gap-4">
             <Link href="/admin/schedule" className="text-sm text-court hover:underline">עריכת לוח זמנים</Link>
             <Link href="/admin/permissions" className="text-sm text-court hover:underline">ניהול הרשאות</Link>
+            <Link href="/admin/receipts" className="text-sm text-court hover:underline">דוח תקבולים</Link>
             <Link href="/admin/audit" className="text-sm text-court hover:underline">יומן פעולות</Link>
           </div>
         </div>

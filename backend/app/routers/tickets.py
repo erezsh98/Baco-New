@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -23,6 +23,21 @@ router = APIRouter(prefix="/tickets", tags=["tickets"])
 # Placeholder end-date marking a ticket that has been created but not yet paid.
 # Matches the old Grails "default date" sentinel (1980-01-01).
 UNPAID_DATE = date(1980, 1, 1)
+# Every purchased ticket is valid for a fixed 10 years from the purchase date.
+# Keeping this constant lets the receipts report (דוח תקבולים) derive a ticket's
+# purchase date as end_date - TICKET_VALIDITY, so it can filter ticket sales by
+# the date money was received without a stored purchase-date column.
+TICKET_VALIDITY = timedelta(days=365 * 10)
+
+
+def ticket_purchase_date(ct):
+    """Derive a purchased ticket's purchase date: its 10-year expiry minus the
+    fixed validity window. None for unpaid/placeholder tickets."""
+    if not ct.end_date or ct.end_date == UNPAID_DATE:
+        return None
+    return ct.end_date - TICKET_VALIDITY
+
+
 SUBSCRIPTION_TYPE = "מנוי"
 CREDIT_TYPE = "זיכוי"          # refund credit — surface these first in the payment picker
 from app.services.pricing import MEMBER_TYPE  # "חבר מועדון" — club-member pricing privilege
@@ -324,10 +339,8 @@ def purchase_ticket_body(body: PurchaseBody, db: Session = Depends(get_db), curr
 
     # Local dev / no Pelecard merchant configured: confirm the purchase immediately.
     if settings.dev_mode or not club or not club.u_name:
-        if club_ticket.total_num_of_punches != -1000:
-            customer_ticket.end_date = date.today() + timedelta(days=365 * 10)
-        else:
-            customer_ticket.end_date = date.today() + timedelta(days=365)
+        # Every purchased ticket is valid for a fixed 10 years from purchase.
+        customer_ticket.end_date = date.today() + TICKET_VALIDITY
         customer_ticket.ticket_cost = club_ticket.ticket_cost
         customer_ticket.approval_number = "DEV"
         db.commit()

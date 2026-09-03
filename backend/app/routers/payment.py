@@ -134,8 +134,8 @@ async def pelecard_failure(request: Request, db: Session = Depends(get_db)):
 @router.api_route("/pelecard-ticket-good", methods=["GET", "POST"])
 async def pelecard_ticket_success(request: Request, db: Session = Depends(get_db)):
     """Finalize a ticket purchase after approval (mirrors PelecardTicketGoodController)."""
-    from datetime import date, timedelta
-    from app.models.ticket import ClubCustomerPermittedTicket, CustomerTicket
+    from datetime import date
+    from app.models.ticket import CustomerTicket
     from app.routers.tickets import UNPAID_DATE
 
     q = await _lower_params(request)
@@ -162,18 +162,10 @@ async def pelecard_ticket_success(request: Request, db: Session = Depends(get_db
     # instead of 404-ing on the already-consumed pending marker.
     if ticket.end_date == UNPAID_DATE:
         club_ticket = ticket.club_ticket
-        if club_ticket and club_ticket.total_num_of_punches != -1000:
-            end_date = date.today() + timedelta(days=365 * 10)
-        else:
-            permit = db.query(ClubCustomerPermittedTicket).filter(
-                ClubCustomerPermittedTicket.user_id == ticket.user_id,
-                ClubCustomerPermittedTicket.club_id == (club_ticket.club_id if club_ticket else None),
-                ClubCustomerPermittedTicket.ticket_type == (club_ticket.ticket_type.strip() if club_ticket and club_ticket.ticket_type else None),
-                ClubCustomerPermittedTicket.end_date > date.today(),
-            ).first()
-            end_date = permit.end_date if permit else date.today() + timedelta(days=365)
-
-        ticket.end_date = end_date
+        # Every purchased ticket is valid for a fixed 10 years from purchase, so
+        # the receipts report can derive the purchase date from the expiry.
+        from app.routers.tickets import TICKET_VALIDITY
+        ticket.end_date = date.today() + TICKET_VALIDITY
         ticket.approval_number = approval
         ticket.ticket_cost = club_ticket.ticket_cost if club_ticket else None
         db.commit()
