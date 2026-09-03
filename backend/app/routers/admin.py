@@ -13,6 +13,7 @@ from app.models.court import AvailableCourtSlot
 from app.models.order import CourtOrder
 from app.models.user import User
 from app.services import audit
+from app.services.pricing import paid_price
 from app.services.scheduler import rebuild
 
 
@@ -88,19 +89,9 @@ def club_orders(
         if tmpl.club_id != manager.club_id:
             continue
         status = "canceled" if o.is_final == "C" else "completed" if o.is_final == "Y" else "pending"
-        # For a ticket (כרטיסייה) payment, show the per-punch price of that specific
-        # ticket = ticket cost / number of punches, at most 1 decimal. Credit-card
-        # orders keep the amount charged; an unlimited ticket (מנוי) has no per-punch
-        # price → 0.
-        if o.customer_ticket_id:
-            ct = o.customer_ticket
-            club_ticket = ct.club_ticket if ct else None
-            cost = ct.ticket_cost if (ct and ct.ticket_cost is not None) else \
-                (club_ticket.ticket_cost if club_ticket else None)
-            punches = club_ticket.total_num_of_punches if club_ticket else None
-            total_price = round(cost / punches, 1) if (cost is not None and punches and punches > 0) else 0
-        else:
-            total_price = o.amount or 0
+        # Real price paid: credit card → amount charged; punch card → one punch
+        # (cost / total punches); credit (זיכוי) or subscription (מנוי) → 0.
+        total_price = paid_price(o)
         result.append({
             "id": o.id,
             "order_id": o.order_id,

@@ -100,3 +100,23 @@ def effective_price(db: Session, user, slot) -> tuple[float, bool]:
     if user is not None and tmpl.member_price is not None and is_club_member(db, user.id, tmpl.club_id):
         return tmpl.member_price, True
     return non_member, False
+
+
+def paid_price(order) -> float:
+    """The real amount actually paid for a court order.
+
+    Mirrors the manager's ניהול הזמנות column so the user's bookings match:
+      • Credit-card payment → the amount charged (order.amount).
+      • Punch-card (כרטיסייה) → the cost of a single punch =
+        ticket cost / total number of punches, at most 1 decimal.
+      • Credit (זיכוי) or unlimited subscription (מנוי) → 0, since those
+        have no positive per-punch cost.
+    """
+    if order.customer_ticket_id:
+        ct = order.customer_ticket
+        club_ticket = ct.club_ticket if ct else None
+        cost = ct.ticket_cost if (ct and ct.ticket_cost is not None) else \
+            (club_ticket.ticket_cost if club_ticket else None)
+        punches = club_ticket.total_num_of_punches if club_ticket else None
+        return round(cost / punches, 1) if (cost is not None and punches and punches > 0) else 0
+    return order.amount or 0

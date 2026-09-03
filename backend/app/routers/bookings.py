@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.court import AvailableCourtSlot
 from app.models.order import CourtOrder
 from app.models.user import User
+from app.services.pricing import paid_price
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
@@ -173,7 +174,9 @@ def _booking_out(order: CourtOrder) -> BookingOut:
         date=slot.curdate if slot else order.order_date,
         hour=slot.hour if slot else 0,
         minutes_offset=(template.minutes_offset or 0) if template else 0,
-        amount=order.amount,
+        # Show the real price paid (credit card → charged; punch card → one
+        # punch; credit/מנוי → 0), same as the manager's ניהול הזמנות.
+        amount=paid_price(order),
         is_final=order.is_final,
         refund_eligible=_refund_eligible(order),
         cancel_until=_cancel_deadline(order),
