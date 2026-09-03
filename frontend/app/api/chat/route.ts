@@ -1,7 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  // Identity-linked API keys must say which workspace the request runs in. Set
+  // ANTHROPIC_WORKSPACE_ID for such a key; harmless (omitted) for a plain
+  // workspace-scoped key.
+  ...(process.env.ANTHROPIC_WORKSPACE_ID
+    ? { defaultHeaders: { "anthropic-workspace-id": process.env.ANTHROPIC_WORKSPACE_ID } }
+    : {}),
+});
 const MODEL = "claude-haiku-4-5";
 
 // Simple in-memory per-user rate limit. Fine for a single frontend instance;
