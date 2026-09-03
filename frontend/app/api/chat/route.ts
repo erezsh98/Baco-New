@@ -38,6 +38,7 @@ const tools: Anthropic.Tool[] = [
         from_hour: { type: "number", description: "Earliest hour (0-23)" },
         to_hour: { type: "number", description: "Latest hour (0-23)" },
         area_id: { type: "number", description: "Area ID to filter by" },
+        club_id: { type: "number", description: "Club ID to filter by (use the clubs list in the system prompt to map a club name to its id)" },
       },
       required: ["from_date", "to_date"],
     },
@@ -88,12 +89,27 @@ export async function POST(req: NextRequest) {
   const history = (Array.isArray(messages) ? messages : []).slice(-5);
   while (history.length && history[0].role !== "user") history.shift();
 
+  // Give the model today's date and the club list so it resolves "today" and
+  // club names itself instead of asking the user.
+  const today = new Date().toISOString().slice(0, 10);
+  let clubsLine = "";
+  try {
+    const cRes = await fetch(`${backendUrl}/clubs`);
+    if (cRes.ok) clubsLine = (await cRes.json()).map((c: { id: number; club_name: string }) => `${c.club_name} (id ${c.id})`).join(", ");
+  } catch { /* ignore — search still works without the map */ }
+
+  const system = `אתה העוזר החכם של BACO — מערכת להזמנת מגרשי טניס אונליין.
+עזור למשתמשים למצוא ולהזמין מגרשי טניס, לצפות בהזמנות שלהם ולבטל הזמנות.
+כשמברכים אותך לשלום, קבל את המשתמש בברכה: "ברוך הבא ל-BACO 🎾".
+התאריך היום הוא ${today}. פענח בעצמך ביטויי זמן יחסיים ("היום", "מחר", "סוף השבוע") לתאריכים בפורמט YYYY-MM-DD — אל תבקש מהמשתמש להזין תאריך אם אפשר להסיק אותו.
+מועדונים זמינים: ${clubsLine || "—"}. כשמשתמש מציין שם מועדון, השתמש ב-club_id המתאים בחיפוש.
+בחיפוש ליום בודד, קבע to_date שווה ל-from_date.
+ענה תמיד בעברית. היה קצר וברור.`;
+
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: 300,
-    system: `אתה עוזר חכם לאתר TennisLine - מערכת הזמנת מגרשי טניס.
-עזור למשתמשים למצוא ולהזמין מגרשי טניס, לצפות בהזמנות שלהם ולבטל הזמנות.
-ענה תמיד בעברית. היה קצר וברור.`,
+    system,
     tools,
     messages: history,
   });
@@ -133,7 +149,7 @@ export async function POST(req: NextRequest) {
     const followUp = await client.messages.create({
       model: MODEL,
       max_tokens: 300,
-      system: `אתה עוזר חכם לאתר TennisLine. ענה תמיד בעברית.`,
+      system,
       tools,
       messages: [
         ...history,
