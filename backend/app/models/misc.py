@@ -25,7 +25,9 @@ class Contact(Base):
     contact_type = Column(String(255), nullable=True)
     content = Column(String(2000), nullable=True)
     type_of = Column(String(255))
-    club_id = Column(Integer, ForeignKey("club.id"))
+    # Global "צור קשר" form has no club (messages go to the BACO inbox), so this
+    # is nullable — the legacy schema had it NOT NULL (see migration 003).
+    club_id = Column(Integer, ForeignKey("club.id"), nullable=True)
 
     club = relationship("Club")
 
