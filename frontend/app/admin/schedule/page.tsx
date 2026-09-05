@@ -203,11 +203,19 @@ export default function SchedulePage() {
     if (!periods.length) return;
     if (!confirmDiscardIfDirty()) return;
     const last = [...periods].sort((a, b) => b.start_date.localeCompare(a.start_date))[0];
+    // Default the new period's start to the day after the last period's end
+    // (TZ-safe via UTC). The manager can still change it.
+    const nextStart = (() => {
+      const d = new Date(`${last.end_date}T00:00:00Z`);
+      if (isNaN(d.getTime())) return "";
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().split("T")[0];
+    })();
     setMsg("");
     try {
       const r = await api.get(`/admin/schedule/matrix?court_number=${court}&start=${last.start_date}&end=${last.end_date}`);
       loadGrid(r.data.cells, r.data.price_mode, r.data.hour_from, r.data.hour_to);
-      setStartDate(""); setEndDate(""); setOrigStart(null); setOrigEnd(null); setReadOnly(false);
+      setStartDate(nextStart); setEndDate(""); setOrigStart(null); setOrigEnd(null); setReadOnly(false);
       setDirty(false); setPeriodView("editor");
     } catch (e: any) { setMsgOk(false); setMsg(problemText(e, "טעינת התקופה נכשלה")); }
   }
