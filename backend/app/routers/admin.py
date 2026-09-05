@@ -313,6 +313,41 @@ def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = De
     return result
 
 
+def _find_user_by_ident(db: Session, ident: str):
+    """Resolve a user by exact email (username), then by phone (digits only,
+    tolerating separators stored in the DB). Shared by the add-user form and its
+    lookup preview so both resolve to the same user."""
+    ident = (ident or "").strip()
+    if not ident:
+        return None
+    user = db.query(User).filter(User.username == ident).first()
+    if user:
+        return user
+    phone_digits = "".join(ch for ch in ident if ch.isdigit())
+    if phone_digits:
+        user = db.query(User).filter(User.phone_number == phone_digits).first()
+        if user:
+            return user
+        candidates = db.query(User).filter(User.phone_number.isnot(None)).all()
+        user = next((u for u in candidates if "".join(c for c in (u.phone_number or "") if c.isdigit()) == phone_digits), None)
+    return user
+
+
+@router.get("/users/lookup")
+def lookup_user(ident: str, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Preview the user matched by an email/phone so a manager can confirm who
+    they're about to grant a permission to. 404 when nothing matches."""
+    user = _find_user_by_ident(db, ident)
+    if not user:
+        raise HTTPException(status_code=404, detail="לא נמצא משתמש")
+    return {
+        "id": user.id,
+        "user_name": f"{user.first_name} {user.last_name}".strip(),
+        "email": user.username,
+        "phone": user.phone_number or "",
+    }
+
+
 class AddUserBody(BaseModel):
     email_or_phone: str
     group_id: int          # ClubTicket id
@@ -336,16 +371,7 @@ def add_club_user(club_id: int, body: AddUserBody, db: Session = Depends(get_db)
     ticket_type = (group.ticket_type or "").strip()
 
     # find user by email, then by phone (digits only)
-    ident = body.email_or_phone.strip()
-    user = db.query(User).filter(User.username == ident).first()
-    if not user:
-        phone_digits = "".join(ch for ch in ident if ch.isdigit())
-        if phone_digits:
-            user = db.query(User).filter(User.phone_number == phone_digits).first()
-            if not user:
-                # tolerate stored phone numbers that contain separators
-                candidates = db.query(User).filter(User.phone_number.isnot(None)).all()
-                user = next((u for u in candidates if "".join(c for c in (u.phone_number or "") if c.isdigit()) == phone_digits), None)
+    user = _find_user_by_ident(db, body.email_or_phone)
     if not user:
         raise HTTPException(status_code=404, detail="לא נמצא משתמש")
 

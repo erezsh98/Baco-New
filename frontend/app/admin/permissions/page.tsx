@@ -19,6 +19,11 @@ export default function PermissionsPage() {
   const [permits, setPermits] = useState<Permit[]>([]);
 
   const [form, setForm] = useState({ email_or_phone: "", group_id: "", end_date: "" });
+  // Live preview of the user matched by the typed email/phone, so the manager
+  // can confirm who they're granting a permission to before submitting.
+  type MatchedUser = { user_name: string; email: string; phone: string };
+  const [matched, setMatched] = useState<MatchedUser | null>(null);
+  const [matchState, setMatchState] = useState<"idle" | "searching" | "notfound">("idle");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -54,6 +59,20 @@ export default function PermissionsPage() {
     if (!selectedClub) return;
     api.get(`/admin/clubs/${selectedClub}/users`).then(r => setPermits(r.data)).catch(() => {});
   }
+
+  // Debounced lookup of the typed email/phone → preview the matched user.
+  useEffect(() => {
+    const ident = form.email_or_phone.trim();
+    if (ident.length < 3) { setMatched(null); setMatchState("idle"); return; }
+    let active = true;
+    setMatchState("searching");
+    const t = setTimeout(() => {
+      api.get(`/admin/users/lookup?ident=${encodeURIComponent(ident)}`)
+        .then(r => { if (active) { setMatched(r.data); setMatchState("idle"); } })
+        .catch(() => { if (active) { setMatched(null); setMatchState("notfound"); } });
+    }, 400);
+    return () => { active = false; clearTimeout(t); };
+  }, [form.email_or_phone]);
 
   async function addUser(e: React.FormEvent) {
     e.preventDefault();
@@ -133,6 +152,22 @@ export default function PermissionsPage() {
                       onChange={e => setForm({ ...form, email_or_phone: e.target.value })}
                       placeholder="example@mail.com או 0501234567"
                       className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+                    {/* Matched-user preview: confirm who gets the permission */}
+                    {matchState === "searching" && (
+                      <p className="text-xs text-muted mt-1">מחפש משתמש...</p>
+                    )}
+                    {matched && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-mint px-3 py-2 text-sm">
+                        <span className="text-court">✓</span>
+                        <span className="font-semibold text-court-dark">{matched.user_name || "—"}</span>
+                        <span className="text-muted">·</span>
+                        <span className="text-ink">{matched.email}</span>
+                        {matched.phone && <><span className="text-muted">·</span><span className="text-ink">{matched.phone}</span></>}
+                      </div>
+                    )}
+                    {matchState === "notfound" && (
+                      <p className="text-xs text-red-600 mt-1">לא נמצא משתמש עם פרטים אלו</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-ink mb-1">קבוצה</label>
