@@ -72,17 +72,22 @@ def subscription_end_by_club(db: Session, user_id: int | None) -> dict[int, date
     }
 
 
-def is_club_member(db: Session, user_id: int | None, club_id: int) -> bool:
+def is_club_member(db: Session, user_id: int | None, club_id: int, on_date: date | None = None) -> bool:
+    """True if the user holds the חבר מועדון privilege for this club that is valid
+    ON on_date (the booking's slot date; defaults to today). Like מנוי, a
+    membership that ends before the booked date does NOT apply — a slot on
+    2026-10-15 is not covered by a membership that ends 2026-09-30. A NULL
+    end_date means the membership never expires."""
     if not user_id:
         return False
-    today = date.today()
+    on_date = on_date or date.today()
     row = db.query(ClubCustomerPermittedTicket).filter(
         ClubCustomerPermittedTicket.club_id == club_id,
         ClubCustomerPermittedTicket.user_id == user_id,
         ClubCustomerPermittedTicket.ticket_type == MEMBER_TYPE,
         or_(
             ClubCustomerPermittedTicket.end_date.is_(None),
-            ClubCustomerPermittedTicket.end_date >= today,
+            ClubCustomerPermittedTicket.end_date >= on_date,
         ),
     ).first()
     return row is not None
@@ -97,7 +102,9 @@ def effective_price(db: Session, user, slot) -> tuple[float, bool]:
     """
     tmpl = slot.rental_template
     non_member = tmpl.non_member_price or 0
-    if user is not None and tmpl.member_price is not None and is_club_member(db, user.id, tmpl.club_id):
+    # Judge membership as of the booked slot's date (like מנוי), so a membership
+    # that expires before the booking date does not grant the member price.
+    if user is not None and tmpl.member_price is not None and is_club_member(db, user.id, tmpl.club_id, slot.curdate):
         return tmpl.member_price, True
     return non_member, False
 
