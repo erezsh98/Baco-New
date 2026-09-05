@@ -91,7 +91,7 @@ export default function ChatWidget() {
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {messages.length === 0 && (
-              <p className="text-muted text-sm text-center mt-4">שלום! איך אוכל לעזור לך להזמין מגרש?</p>
+              <p className="text-muted text-sm text-center mt-4">שלום! אפשר לשאול אותי על מגרשים פנויים, ההזמנות שלך והכרטיסיות שלך.</p>
             )}
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}>

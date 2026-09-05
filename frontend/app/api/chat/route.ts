@@ -49,12 +49,18 @@ const tools: Anthropic.Tool[] = [
     input_schema: { type: "object" as const, properties: {}, required: [] },
   },
   {
-    name: "cancel_booking",
-    description: "Cancel a future booking by order ID",
+    name: "get_my_tickets",
+    description:
+      "Get the user's tickets: punch cards (כרטיסיות), subscriptions (מנוי) and refund credits (זיכוי). " +
+      "Each item has club_name, ticket_type (מנוי/זיכוי or a punch-card name), punches_left, unlimited, valid_until and is_valid. " +
+      "Use this to answer what punch cards the user has, where they are a מנוי, or whether they have a זיכוי in a given club.",
     input_schema: {
       type: "object" as const,
-      properties: { order_id: { type: "number", description: "The booking order ID" } },
-      required: ["order_id"],
+      properties: {
+        club_id: { type: "number", description: "Optional club ID to filter to one club (map a club name via the clubs list in the system prompt)" },
+        include_all: { type: "boolean", description: "Set true to also include expired / used-up tickets (default false = only currently valid)" },
+      },
+      required: [],
     },
   },
 ];
@@ -99,10 +105,13 @@ export async function POST(req: NextRequest) {
   } catch { /* ignore — search still works without the map */ }
 
   const system = `אתה העוזר החכם של BACO — מערכת להזמנת מגרשי טניס אונליין.
-עזור למשתמשים למצוא ולהזמין מגרשי טניס, לצפות בהזמנות שלהם ולבטל הזמנות.
+אתה עוזר מידע בלבד: אתה עונה על שאלות ומספק מידע, אך אינך מבצע שום פעולה שמשנה נתונים.
+אתה יכול: לחפש מגרשים פנויים לפי תאריך/שעה/מועדון, להציג את ההזמנות העתידיות של המשתמש, ולהציג את הכרטיסיות שלו — כולל כרטיסיות ניקוב, מנויים (מנוי) וזיכויים (זיכוי) לפי מועדון.
+אתה לא: מזמין מגרשים, מבטל הזמנות, רוכש כרטיסיות, או מבצע כל שינוי אחר. אם מבקשים ממך פעולה כזו, הסבר בנימוס שאתה עוזר מידע בלבד ושהמשתמש יכול לבצע את הפעולה בעצמו במסכי האתר.
+כדי לענות על "אילו כרטיסיות יש לי", "היכן אני מנוי", או "האם יש לי זיכוי במועדון X" — השתמש בכלי get_my_tickets (עם club_id של אותו מועדון במידת הצורך).
 כשמברכים אותך לשלום, קבל את המשתמש בברכה: "ברוך הבא ל-BACO 🎾".
 התאריך היום הוא ${today}. פענח בעצמך ביטויי זמן יחסיים ("היום", "מחר", "סוף השבוע") לתאריכים בפורמט YYYY-MM-DD — אל תבקש מהמשתמש להזין תאריך אם אפשר להסיק אותו.
-מועדונים זמינים: ${clubsLine || "—"}. כשמשתמש מציין שם מועדון, השתמש ב-club_id המתאים בחיפוש.
+מועדונים זמינים: ${clubsLine || "—"}. כשמשתמש מציין שם מועדון, השתמש ב-club_id המתאים.
 בחיפוש ליום בודד, קבע to_date שווה ל-from_date.
 ענה תמיד בעברית. היה קצר וברור.`;
 
@@ -130,12 +139,12 @@ export async function POST(req: NextRequest) {
           } else if (block.name === "get_my_bookings") {
             const res = await fetch(`${backendUrl}/bookings/future`, { headers });
             result = await res.json();
-          } else if (block.name === "cancel_booking") {
-            const input = block.input as { order_id: number };
-            const res = await fetch(`${backendUrl}/bookings/${input.order_id}`, {
-              method: "DELETE",
-              headers,
-            });
+          } else if (block.name === "get_my_tickets") {
+            const input = block.input as { club_id?: number; include_all?: boolean };
+            const params = new URLSearchParams();
+            if (input.club_id) params.set("club_id", String(input.club_id));
+            if (input.include_all) params.set("include_all", "true");
+            const res = await fetch(`${backendUrl}/tickets/my?${params}`, { headers });
             result = await res.json();
           }
         } catch {
