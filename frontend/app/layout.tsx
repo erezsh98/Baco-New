@@ -4,7 +4,7 @@ import Navbar from "@/components/Navbar";
 import InstallHint from "@/components/InstallHint";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("http://baco.co.il"),
+  metadataBase: new URL("https://baco.co.il"),
   title: "BACO — הזמנת מגרשי טניס אונליין",
   description: "מצאו מגרש טניס פנוי לפי אזור, תאריך ושעה, והזמינו בשניות. BACO — Book A Court Online.",
   applicationName: "BACO",
