@@ -23,6 +23,9 @@ export default function PaymentPage() {
   const [iframeHtml, setIframeHtml] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // URL of the club's regulations (תקנון) PDF, only if the club has one on file
+  // (frontend/public/clubs/<id>/takanon.pdf). Null → the club has no document.
+  const [takanonUrl, setTakanonUrl] = useState<string | null>(null);
   // Guard so the auto-open credit flow fires only ONCE (React StrictMode double-
   // invokes effects in dev, which would otherwise create two orders — the second
   // failing with "slot no longer available" because the first already claimed it).
@@ -33,6 +36,10 @@ export default function PaymentPage() {
     if (!saved) { router.push("/search"); return; }
     const s: Slot = JSON.parse(saved);
     setSlot(s);
+    // Show the club's תקנון link + consent text only if the club has a document.
+    fetch(`/clubs/${s.club_id}/takanon.pdf`, { method: "HEAD" })
+      .then(res => { if (res.ok) setTakanonUrl(`/clubs/${s.club_id}/takanon.pdf`); })
+      .catch(() => {});
     const token = localStorage.getItem("access_token");
     if (token) {
       // Re-price the slot for the now-authenticated user — member pricing (חבר מועדון)
@@ -154,6 +161,15 @@ export default function PaymentPage() {
             {slot.is_member_price && !slot.is_free && !slot.covered_by_subscription && <span className="mr-2 text-xs text-court">(מחיר חבר מועדון)</span>}
             {slot.covered_by_subscription && <span className="mr-2 text-xs text-court">(בחרו כרטיסייה למטה)</span>}
           </p>
+          {takanonUrl && (
+            <div className="mt-3 pt-3 border-t border-line">
+              <a href={takanonUrl} target="_blank" rel="noopener noreferrer"
+                className="text-sm text-court underline hover:text-court-dark">
+                תקנון המועדון
+              </a>
+              <p className="text-xs text-muted mt-1">בעצם ביצוע ההזמנה אני מסכים לתנאי התקנון.</p>
+            </div>
+          )}
         </div>
 
         {error && <p className="text-red-600 text-sm mb-4 text-center">{error}</p>}
