@@ -38,8 +38,8 @@ export default function SchedulePage() {
   const [courts, setCourts] = useState<CourtInfo[]>([]);
   const [court, setCourt] = useState<number | null>(null);
 
-  const [model, setModel] = useState<"auto" | "period">("auto");
-  const [serverModel, setServerModel] = useState<"auto" | "period">("auto");
+  const [model, setModel] = useState<"auto" | "period">("period");   // "קבוע" (auto) disabled — default to period
+  const [serverModel, setServerModel] = useState<"auto" | "period">("period");
   const [periods, setPeriods] = useState<Period[]>([]);
   const [periodView, setPeriodView] = useState<"list" | "editor">("list");
   const [periodPage, setPeriodPage] = useState(0);   // pagination for the periods list
@@ -110,9 +110,12 @@ export default function SchedulePage() {
     try {
       const r = await api.get(`/admin/schedule/court?court_number=${c}`);
       const d = r.data;
-      setModel(d.model); setServerModel(d.model);
+      // "קבוע" (auto) is disabled — a court returned as "auto" is an empty/new
+      // court, so open it in "period" mode (empty periods list) rather than auto.
+      const uiModel: "auto" | "period" = d.model === "auto" ? "period" : d.model;
+      setModel(uiModel); setServerModel(d.model);
       setSurfaceType(d.surface_type || "");
-      if (d.model === "auto") {
+      if (uiModel === "auto") {
         loadGrid(d.cells, d.price_mode, d.hour_from, d.hour_to);
         setStartDate(d.start_date); setEndDate(d.end_date);
         setOrigStart(null); setOrigEnd(null); setReadOnly(false);
@@ -179,17 +182,14 @@ export default function SchedulePage() {
 
   // ---- model selector ----
   function selectModel(m: "auto" | "period") {
+    // "קבוע" (auto) is disabled for now — only period schedules are selectable.
+    if (m !== "period") return;
     if (m === model) return;
     if (!confirmDiscardIfDirty()) return;
-    setModel(m); setMsg(""); setPending(null); setDirty(false);
-    if (m === "auto") {
-      if (serverModel === "auto") loadCourt(court!);   // reload the renew schedule
-      else { seedEmptyGrid(); setStartDate(today); setEndDate(RENEW_END); setOrigStart(null); setOrigEnd(null); setReadOnly(false); }
-    } else {
-      // period: show the list (periods already loaded if server model was period, else empty)
-      if (serverModel === "period") setPeriodView("list");
-      else { setPeriods([]); setPeriodView("list"); }
-    }
+    setModel("period"); setMsg(""); setPending(null); setDirty(false);
+    // period: show the list (periods already loaded if server model was period, else empty)
+    if (serverModel === "period") setPeriodView("list");
+    else { setPeriods([]); setPeriodView("list"); }
   }
 
   // ---- period actions ----

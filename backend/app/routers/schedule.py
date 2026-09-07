@@ -320,6 +320,11 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
     """
     today = date.today()
 
+    # The "קבוע" (auto / renew) model is disabled for now — only period schedules
+    # are allowed. Guard here so it can't be created even via a direct API call.
+    if payload.model == "auto":
+        raise HTTPException(status_code=400, detail="מודל 'קבוע' אינו זמין כעת. השתמשו ב'משתנה לפי תקופה'.")
+
     for c in payload.cells:
         if not (1 <= c.day <= 7):
             raise HTTPException(status_code=400, detail=f"יום לא תקין: {c.day}")
