@@ -15,7 +15,7 @@ const DAY_LABELS: Record<number, string> = {
 const OFFSETS = [0, 15, 30, 45];
 const RENEW_END = "2050-12-31";
 const PERIODS_PER_PAGE = 10;
-const SURFACES = ["קשה", "חימר", "דשא"];   // court surface types (fixed dropdown)
+const SURFACES = ["קשה", "חימר", "דשא", "חול"];   // court surface types (fixed dropdown)
 
 type Tier = { id: number; color: string; member: number; nonMember: number };
 type Cell = { tier: number; offset: number; forMember?: boolean };

@@ -292,7 +292,7 @@ class MatrixCell(BaseModel):
     for_member: bool = False  # True = subscriber-only slot (visible only to מנוי holders)
 
 
-SURFACE_TYPES = {"קשה", "חימר", "דשא"}   # allowed court surfaces (fixed dropdown)
+SURFACE_TYPES = {"קשה", "חימר", "דשא", "חול"}   # allowed court surfaces (fixed dropdown)
 
 
 class MatrixSave(BaseModel):
@@ -303,7 +303,7 @@ class MatrixSave(BaseModel):
     orig_start: date | None = None    # period edit: identifies the period being replaced
     orig_end: date | None = None
     price_mode: str = "same"
-    surface_type: str | None = None   # court-level surface: קשה / חימר / דשא (or none)
+    surface_type: str | None = None   # court-level surface: קשה / חימר / דשא / חול (or none)
     cells: list[MatrixCell]
     confirm_block_conflicts: bool = False
 
