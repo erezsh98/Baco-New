@@ -1,7 +1,7 @@
 # Copy the production DB to the laptop as a new database
 
 Export the real (production) database from GCP, import it on the private laptop
-under a **new, unique name**, then apply the two migrations that bring it to the
+under a **new, unique name**, then apply the migrations that bring it to the
 current app structure.
 
 Four phases: **export from GCP → (file is already on the laptop) → create + import
@@ -163,9 +163,10 @@ mysql -u root -p baco_prod_copy_20260826 < ~/baco_prod_dump.sql
 
 ---
 
-## 5. Alter it to the new-app structure (the two migrations)
+## 5. Alter it to the new-app structure (the migrations)
 
-Run from the repo root so the paths resolve. **Order matters** (001 then 002):
+Run from the repo root so the paths resolve. **Order matters** — apply them in
+numeric order. All are additive and idempotent (safe to re-run):
 
 ```bash
 mysql -u root -p baco_prod_copy_20260826 < backend/migrations/001_modernization_schema.sql
@@ -175,11 +176,32 @@ mysql -u root -p baco_prod_copy_20260826 < backend/migrations/001_modernization_
 mysql -u root -p baco_prod_copy_20260826 < backend/migrations/002_version_default.sql
 ```
 
+```bash
+mysql -u root -p baco_prod_copy_20260826 < backend/migrations/003_contact_club_nullable.sql
+```
+
+```bash
+mysql -u root -p baco_prod_copy_20260826 < backend/migrations/004_club_is_active.sql
+```
+
 - **001** adds the objects the new app needs (`audit_log` table,
   `holiday_dates.court_number`, `club.slot_window_days`) — additive only,
   idempotent.
 - **002** gives every legacy `version` column a `DEFAULT 0` so the new app can
   INSERT.
+- **003** relaxes `contact.club_id` to allow NULL — the global "צור קשר" form
+  has no club, so inserts would otherwise fail with `1048 Column 'club_id'
+  cannot be null`. Preserves the column's existing type; no-op if already
+  nullable.
+- **004** adds `club.is_active CHAR(1) NOT NULL DEFAULT 'Y'` (every club active
+  by default). Lets super-admin hide retired clubs from the user-facing
+  dropdowns without deleting the rows that reference them.
+
+> Tip: to apply every migration in one go, run them in order with a loop:
+> ```bash
+> for f in backend/migrations/0*.sql; do echo "-- $f"; mysql -u root -p baco_prod_copy_20260826 < "$f"; done
+> ```
+> (This will prompt for the password once per file.)
 
 Nothing else is needed: the app's models already match the production names
 (`rental_tamplate`, `minuts_offset`, `club.gate_pone`, `DOUBLE` prices), so there
