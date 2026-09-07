@@ -39,7 +39,9 @@ def list_areas(db: Session = Depends(get_db)):
 
 @router.get("", response_model=list[ClubOut])
 def list_clubs(area_id: int | None = None, db: Session = Depends(get_db)):
-    q = db.query(Club)
+    # User-facing dropdowns: hide clubs marked inactive (is_active = 'N').
+    # Super-admin uses /admin/super/clubs, which lists all clubs regardless.
+    q = db.query(Club).filter(Club.is_active != "N")
     if area_id:
         q = q.filter(Club.area_id == area_id)
     return q.all()

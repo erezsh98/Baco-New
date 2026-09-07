@@ -84,6 +84,7 @@ class ClubIn(BaseModel):
     u_name: str | None = None            # Pelecard merchant username
     street: str | None = None
     city: str | None = None
+    is_active: str | None = None         # 'Y' active / 'N' hidden from user dropdowns
 
 
 def _club_out(db: Session, c: Club) -> dict:
@@ -100,6 +101,7 @@ def _club_out(db: Session, c: Club) -> dict:
         "admin_start_hour": c.admin_start_hour,
         "slot_window_days": c.slot_window_days,
         "u_name": c.u_name,
+        "is_active": c.is_active or "Y",
         "street": addr.street if addr else None, "city": addr.city if addr else None,
     }
 
@@ -117,6 +119,9 @@ def _apply_club(db: Session, c: Club, body: ClubIn) -> None:
     c.admin_start_hour = body.admin_start_hour
     c.slot_window_days = body.slot_window_days
     c.u_name = body.u_name
+    # Only change active state when provided (new clubs default to active 'Y').
+    if body.is_active is not None:
+        c.is_active = "N" if body.is_active == "N" else "Y"
     # address (street/city) lives in its own table
     if body.street is not None or body.city is not None:
         addr = db.query(Address).filter(Address.id == c.address_id).first() if c.address_id else None
@@ -154,6 +159,24 @@ def update_club(club_id: int, body: ClubIn, db: Session = Depends(get_db), su: U
         raise HTTPException(status_code=404, detail="מועדון לא נמצא")
     _apply_club(db, c, body)
     audit.record(db, su, "club.update", f"עודכן מועדון: {c.club_name}", club_id=c.id, club_name=c.club_name)
+    db.commit()
+    return _club_out(db, c)
+
+
+class ActiveIn(BaseModel):
+    is_active: str   # 'Y' active / 'N' hidden from user dropdowns
+
+
+@router.put("/clubs/{club_id}/active")
+def set_club_active(club_id: int, body: ActiveIn, db: Session = Depends(get_db), su: User = Depends(require_super_admin)):
+    """Toggle a club's active state only — leaves every other field untouched.
+    Inactive clubs disappear from the user-facing dropdowns; no data is deleted."""
+    c = db.query(Club).filter(Club.id == club_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="מועדון לא נמצא")
+    c.is_active = "N" if body.is_active == "N" else "Y"
+    state = "הופעל" if c.is_active == "Y" else "הושבת"
+    audit.record(db, su, "club.active", f"מועדון {state}: {c.club_name}", club_id=c.id, club_name=c.club_name)
     db.commit()
     return _club_out(db, c)
 

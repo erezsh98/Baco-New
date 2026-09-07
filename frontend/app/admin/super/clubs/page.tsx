@@ -10,13 +10,13 @@ type Club = {
   email: string | null; num_of_courts: number | null; contact_name: string | null; contact_phone: string | null;
   min_hour_for_cancel: number | null; rent_threshold_days: number | null; rental_threshold_hours: number | null;
   admin_start_hour: number | null; slot_window_days: number | null; u_name: string | null;
-  street: string | null; city: string | null;
+  street: string | null; city: string | null; is_active: string;
 };
 
 const EMPTY: any = {
   club_name: "", area_id: "", email: "", num_of_courts: "", contact_name: "", contact_phone: "",
   min_hour_for_cancel: "", rent_threshold_days: "", rental_threshold_hours: "", admin_start_hour: "",
-  slot_window_days: "", u_name: "", street: "", city: "",
+  slot_window_days: "", u_name: "", street: "", city: "", is_active: "Y",
 };
 
 export default function SuperClubsPage() {
@@ -48,7 +48,7 @@ export default function SuperClubsPage() {
       min_hour_for_cancel: c.min_hour_for_cancel ?? "", rent_threshold_days: c.rent_threshold_days ?? "",
       rental_threshold_hours: c.rental_threshold_hours ?? "", admin_start_hour: c.admin_start_hour ?? "",
       slot_window_days: c.slot_window_days ?? "", u_name: c.u_name ?? "",
-      street: c.street ?? "", city: c.city ?? "",
+      street: c.street ?? "", city: c.city ?? "", is_active: c.is_active ?? "Y",
     });
   }
 
@@ -64,6 +64,7 @@ export default function SuperClubsPage() {
       admin_start_hour: numOrNull(form.admin_start_hour), slot_window_days: numOrNull(form.slot_window_days),
       u_name: form.u_name || null,
       street: form.street || null, city: form.city || null,
+      is_active: form.is_active === "N" ? "N" : "Y",
     };
     try {
       if (editId === 0) await api.post("/admin/super/clubs", payload);
@@ -73,6 +74,19 @@ export default function SuperClubsPage() {
     } catch (e: any) {
       setMsgOk(false); setMsg(e.response?.data?.detail || "שגיאה בשמירה");
     } finally { setSaving(false); }
+  }
+
+  async function toggleActive(c: Club) {
+    const next = c.is_active === "N" ? "Y" : "N";
+    if (next === "N" && !window.confirm(`להסתיר את "${c.club_name}" מרשימות הבחירה של המשתמשים? המועדון והנתונים יישמרו וניתן להחזירו בכל עת.`)) return;
+    setMsg("");
+    try {
+      await api.put(`/admin/super/clubs/${c.id}/active`, { is_active: next });
+      setMsgOk(true); setMsg(next === "N" ? `"${c.club_name}" הוסתר.` : `"${c.club_name}" הופעל.`);
+      load();
+    } catch (e: any) {
+      setMsgOk(false); setMsg(e.response?.data?.detail || "שגיאה בעדכון סטטוס");
+    }
   }
 
   async function rebuild(clubId: number | null, label: string) {
@@ -128,18 +142,26 @@ export default function SuperClubsPage() {
                 <thead className="bg-ink text-white"><tr>
                   <th className="px-4 py-3 text-right">מועדון</th><th className="px-4 py-3 text-right">אזור</th>
                   <th className="px-4 py-3 text-right">מגרשים</th><th className="px-4 py-3 text-right">ביטול (שעות)</th>
-                  <th className="px-4 py-3 text-right">חלון ימים</th><th className="px-4 py-3"></th>
+                  <th className="px-4 py-3 text-right">חלון ימים</th><th className="px-4 py-3 text-right">סטטוס</th><th className="px-4 py-3"></th>
                 </tr></thead>
                 <tbody>
                   {filtered.map((c, i) => (
-                    <tr key={c.id} className={i % 2 === 0 ? "bg-white" : "bg-canvas"}>
+                    <tr key={c.id} className={`${i % 2 === 0 ? "bg-white" : "bg-canvas"} ${c.is_active === "N" ? "opacity-60" : ""}`}>
                       <td className="px-4 py-3 font-medium">{c.club_name}</td>
                       <td className="px-4 py-3">{c.area_name || "—"}</td>
                       <td className="px-4 py-3">{c.num_of_courts ?? "—"}</td>
                       <td className="px-4 py-3">{c.min_hour_for_cancel ?? "—"}</td>
                       <td className="px-4 py-3">{c.slot_window_days ?? "30 (ברירת מחדל)"}</td>
+                      <td className="px-4 py-3">
+                        {c.is_active === "N"
+                          ? <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600">לא פעיל</span>
+                          : <span className="text-xs px-2 py-1 rounded-full bg-mint text-court">פעיל</span>}
+                      </td>
                       <td className="px-4 py-3 text-left whitespace-nowrap">
                         <button onClick={() => openEdit(c)} className="text-court hover:underline ml-3">ערוך</button>
+                        <button onClick={() => toggleActive(c)} className="text-court hover:underline ml-3">
+                          {c.is_active === "N" ? "הפעל" : "הסתר"}
+                        </button>
                         <button onClick={() => rebuild(c.id, c.club_name)} disabled={rebuilding !== null} className="text-court hover:underline disabled:opacity-50">
                           {rebuilding === c.id ? "מעדכן..." : "עדכן זמינות"}
                         </button>
@@ -147,7 +169,7 @@ export default function SuperClubsPage() {
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-6 text-center text-muted">
+                    <tr><td colSpan={7} className="px-4 py-6 text-center text-muted">
                       {clubs.length === 0 ? "אין מועדונים." : `לא נמצאו מועדונים התואמים ל"${query}".`}
                     </td></tr>
                   )}
@@ -180,6 +202,14 @@ export default function SuperClubsPage() {
               {F("Pelecard u_name", "u_name")}
               {F("רחוב", "street")}
               {F("עיר", "city")}
+              <div>
+                <label className="block text-sm font-medium text-ink mb-1">סטטוס</label>
+                <select value={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
+                  <option value="Y">פעיל</option>
+                  <option value="N">לא פעיל (מוסתר מרשימות הבחירה)</option>
+                </select>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-4">
               <button onClick={() => setEditId(null)} className="px-5 py-2 rounded-lg border border-line hover:bg-canvas text-sm">ביטול</button>

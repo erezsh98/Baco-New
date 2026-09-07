@@ -46,6 +46,9 @@ class Club(Base):
     gate_phone = Column("gate_pone", String(255))   # prod column is the typo'd "gate_pone"
     gate_pass = Column(String(255))
     order_on_saturday = Column(String(1))
+    # Soft active flag (see migration 004). 'N' = hidden from user-facing club
+    # dropdowns; anything else (default 'Y') = active. Never deletes club data.
+    is_active = Column(String(1), nullable=False, default="Y", server_default="Y")
 
     area = relationship("Area", back_populates="clubs")
     address = relationship("Address")
