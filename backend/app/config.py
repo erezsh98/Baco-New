@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     # are confirmed immediately. For local development without live credentials.
     dev_mode: bool = False
 
+    # Background jobs (rebuild, release_uncompleted_orders).
+    # enable_scheduler: run them in-process via APScheduler. Keep True for
+    #   dev/single-server. Set False in GCP when driving them with Cloud
+    #   Scheduler instead, so they don't run twice.
+    # scheduler_token: shared secret Cloud Scheduler must send in the
+    #   X-Scheduler-Token header to call the /jobs endpoints. Empty = the
+    #   /jobs endpoints are disabled (fail closed).
+    enable_scheduler: bool = True
+    scheduler_token: str = ""
+
     class Config:
         env_file = ".env"
 

@@ -3,15 +3,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, bookings, clubs, contact, courts, payment, tickets, users, admin, schedule, holidays, audit, super_admin
+from app.config import settings
+from app.routers import auth, bookings, clubs, contact, courts, payment, tickets, users, admin, schedule, holidays, audit, super_admin, jobs
 from app.services.scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    start_scheduler()
+    # Run jobs in-process unless an external scheduler (Cloud Scheduler → /jobs)
+    # is driving them — disable here (ENABLE_SCHEDULER=false) to avoid double runs.
+    if settings.enable_scheduler:
+        start_scheduler()
     yield
-    stop_scheduler()
+    if settings.enable_scheduler:
+        stop_scheduler()
 
 
 app = FastAPI(title="TennisLine API", version="1.0.0", lifespan=lifespan)
@@ -37,6 +42,7 @@ app.include_router(holidays.router)
 app.include_router(audit.router)
 app.include_router(super_admin.router)
 app.include_router(contact.router)
+app.include_router(jobs.router)
 
 
 @app.get("/health")
