@@ -71,8 +71,29 @@ sudo apt install -y python3.12 python3.12-venv nginx git
 # Node.js 20 LTS (NodeSource)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
-# MySQL 9.6 — install from the MySQL APT repo (community). Skip if MySQL is remote.
 ```
+
+**MySQL 9.6** — Debian/Ubuntu's own repos only carry 8.0/8.4, so add MySQL's
+official APT repo (the "Innovation" channel gives the 9.x line). Skip if MySQL
+runs on a remote host.
+
+```bash
+# Grab the current mysql-apt-config from https://dev.mysql.com/downloads/repo/apt/
+# (the version in the filename changes over time).
+cd /tmp
+wget https://dev.mysql.com/get/mysql-apt-config_0.8.34-1_all.deb
+sudo dpkg -i mysql-apt-config_0.8.34-1_all.deb
+# In the dialog choose the "mysql-innovation" series (9.x); LTS = 8.4, default = 8.0.
+
+sudo apt update
+sudo apt install -y mysql-community-server
+sudo systemctl enable --now mysql
+sudo mysql_secure_installation
+mysql --version                      # confirm 9.x
+```
+
+> The Innovation channel installs the latest 9.x available (may be 9.6 or newer).
+> To pin exactly 9.6, install the versioned packages and `apt-mark hold` them.
 
 Set the VM timezone (the scheduler pins Asia/Jerusalem, but keep the host aligned):
 
