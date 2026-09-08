@@ -1,0 +1,21 @@
+[Unit]
+Description=BACO frontend (Next.js)
+After=network-online.target baco-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=baco
+Group=baco
+WorkingDirectory=/opt/baco/frontend
+# Runtime env (BACKEND_URL, ANTHROPIC_API_KEY, ANTHROPIC_WORKSPACE_ID) is read
+# from frontend/.env.production, which Next loads automatically for `next start`.
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=TZ=Asia/Jerusalem
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

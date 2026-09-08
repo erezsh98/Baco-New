@@ -1,0 +1,19 @@
+[Unit]
+Description=BACO backend (FastAPI / uvicorn)
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=baco
+Group=baco
+WorkingDirectory=/opt/baco/backend
+# app/config.py reads backend/.env (pydantic env_file=".env") from WorkingDirectory.
+# Single instance, NO --workers: the in-process scheduler must run once only.
+ExecStart=/opt/baco/backend/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Environment=TZ=Asia/Jerusalem
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
