@@ -86,14 +86,42 @@ sudo dpkg -i mysql-apt-config_0.8.34-1_all.deb
 # In the dialog choose the "mysql-innovation" series (9.x); LTS = 8.4, default = 8.0.
 
 sudo apt update
-sudo apt install -y mysql-community-server
-sudo systemctl enable --now mysql
-sudo mysql_secure_installation
-mysql --version                      # confirm 9.x
+sudo mysql_secure_installation       # run after install below
 ```
 
-> The Innovation channel installs the latest 9.x available (may be 9.6 or newer).
-> To pin exactly 9.6, install the versioned packages and `apt-mark hold` them.
+**Pin exactly 9.6 and hold it.** The APT repo usually serves only the latest
+release per channel, so first check whether 9.6 is still available:
+
+```bash
+apt list -a mysql-community-server   # is a 9.6.x version listed?
+```
+
+- **If 9.6 is listed** — install the suite pinned to that exact version string:
+  ```bash
+  V=9.6.0-1debian12                  # ← use the EXACT string from `apt list -a`
+  sudo apt install -y mysql-community-server=$V mysql-community-client=$V
+  ```
+- **If 9.6 is gone** (a newer 9.x is current) — install the 9.6 APT bundle from
+  the archives at https://downloads.mysql.com/archives/community/ :
+  ```bash
+  cd /tmp
+  wget https://downloads.mysql.com/archives/get/p/23/file/mysql-server_9.6.0-1ubuntu24.04_amd64.deb-bundle.tar
+  mkdir mysql96 && tar -xf mysql-server_9.6.0-*.deb-bundle.tar -C mysql96
+  sudo apt install -y ./mysql96/*.deb
+  ```
+
+Then freeze it so `apt upgrade` never moves it off 9.6, start it, and verify:
+
+```bash
+dpkg -l | awk '/^ii/ && $2 ~ /^mysql-/ {print $2}' | xargs sudo apt-mark hold
+apt-mark showhold
+sudo systemctl enable --now mysql
+sudo mysql_secure_installation
+mysql --version                      # confirm 9.6
+```
+
+> To upgrade later, release the hold first:
+> `dpkg -l | awk '/^ii/ && $2 ~ /^mysql-/ {print $2}' | xargs sudo apt-mark unhold`
 
 Set the VM timezone (the scheduler pins Asia/Jerusalem, but keep the host aligned):
 
