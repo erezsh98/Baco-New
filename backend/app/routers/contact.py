@@ -13,6 +13,7 @@ CONTACT_RECIPIENT = "servicebaco@gmail.com"   # all צור קשר messages go he
 class ContactIn(BaseModel):
     name: str
     email: EmailStr
+    phone: str | None = None
     message: str
 
 
@@ -23,6 +24,7 @@ def submit_contact(data: ContactIn, db: Session = Depends(get_db)):
         first_name=parts[0],
         last_name=parts[1] if len(parts) > 1 else "",
         email=data.email,
+        phone_number=(data.phone or "").strip() or None,
         content=data.message,
         type_of="web",
     )

@@ -3,7 +3,7 @@ import { useState } from "react";
 import api from "@/lib/api";
 
 export default function ContactPage() {
-  const [form, setForm] = useState({ name: "", email: "", message: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -12,14 +12,29 @@ export default function ContactPage() {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
+  // Client-side validation with Hebrew messages (returns the first problem, or "").
+  function validate(): string {
+    if (!form.name.trim()) return "יש להזין שם מלא";
+    if (!form.email.trim()) return "יש להזין כתובת אימייל";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "כתובת אימייל לא תקינה";
+    const digits = form.phone.replace(/\D/g, "");
+    if (!digits) return "יש להזין מספר טלפון";
+    if (!/^0\d{8,9}$/.test(digits)) return "מספר טלפון לא תקין";
+    if (!form.message.trim()) return "יש להזין תוכן הודעה";
+    return "";
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(""); setLoading(true);
+    setError("");
+    const problem = validate();
+    if (problem) { setError(problem); return; }
+    setLoading(true);
     try {
       await api.post("/contact", form);
       setSent(true);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "שגיאה בשליחה");
+      setError(err.response?.data?.detail || "שגיאה בשליחת ההודעה. נסו שוב מאוחר יותר.");
     } finally { setLoading(false); }
   }
 
@@ -33,7 +48,7 @@ export default function ContactPage() {
           {sent ? (
             <p className="text-court text-center py-4">ההודעה נשלחה! נחזור אליך בהקדם.</p>
           ) : (
-            <form onSubmit={submit} className="space-y-4">
+            <form onSubmit={submit} noValidate className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-ink mb-1">שם מלא</label>
                 <input name="name" required value={form.name} onChange={handle}
@@ -42,6 +57,12 @@ export default function ContactPage() {
               <div>
                 <label className="block text-sm font-medium text-ink mb-1">אימייל</label>
                 <input name="email" type="email" required value={form.email} onChange={handle}
+                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-ink mb-1">טלפון</label>
+                <input name="phone" type="tel" required value={form.phone} onChange={handle}
+                  placeholder="05X-XXXXXXX"
                   className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
               </div>
               <div>
