@@ -29,7 +29,6 @@ class Settings(BaseSettings):
 
     app_base_url: str = "http://localhost"
     frontend_base_url: str = "http://localhost:3000"   # used to build user-facing links (e.g. password reset)
-    anthropic_api_key: str = ""
 
     # When true, payment gateway (Pelecard) is bypassed and purchases/bookings
     # are confirmed immediately. For local development without live credentials.

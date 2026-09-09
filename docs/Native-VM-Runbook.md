@@ -11,7 +11,7 @@ old Grails VM. No Docker, no Kubernetes.
                                     ├── /jobs/     → 127.0.0.1:8000  (FastAPI, Cloud Scheduler — optional)
                                     └── /          → 127.0.0.1:3000  (Next.js)
                                                          └─ /api/backend/* rewritten to 127.0.0.1:8000
-  FastAPI ── mysqlclient ─→ MySQL 9.6 (127.0.0.1:3306)
+  FastAPI ── mysqlclient ─→ MySQL 8.4 (127.0.0.1:3306)
 ```
 
 Ready-to-use files live in [`deploy/`](../deploy): `baco-backend.service`,
@@ -19,36 +19,41 @@ Ready-to-use files live in [`deploy/`](../deploy): `baco-backend.service`,
 
 ---
 
-## ⚠️ Read first: MySQL 8 (old) → MySQL 9.6 (new) changes the rollback model
+## ⚠️ Read first: MySQL 8 (old) → MySQL 8.4 (new) and the rollback model
 
-The old system runs on **MySQL 8**; the new system will run on **MySQL 9.6**.
-Two different engine versions means **two separate database servers** — they
-cannot share one data directory. So the earlier "one shared DB, flip the proxy,
-zero data loss" rollback does **not** apply here.
+The old system runs on **MySQL 8** (8.0); the new system runs on **MySQL 8.4
+(LTS)** — the same 8.x family, so the migration is low-risk and the app needs
+only a light re-test (it uses standard SQL supported since 8.0). You have two
+ways to run it, with different rollback stories:
 
-What this means concretely:
+**Option A — share the existing MySQL 8.0 (simplest, best rollback).** Point the
+new app at the **existing** production MySQL 8.0 (SQLAlchemy works fine with 8.0)
+and apply migrations 001–004 (all additive/backward-compatible, so the old app
+keeps working too). One shared DB → **rollback is just flipping the proxy back,
+with zero data loss**. You don't get 8.4, but rollback is instant.
 
-- You load a **dump of the MySQL-8 production data into the new MySQL 9.6**, then
-  apply migrations 001–004.
-- After cutover, new bookings/orders are written to **MySQL 9.6 only**. The old
-  MySQL 8 is frozen and does not see them.
-- **Rollback = switch traffic back to the old VM/MySQL 8**, which loses anything
+**Option B — stand up a separate MySQL 8.4 (what the steps below install).** A
+separate 8.4 server means **two databases**, so:
+- You load a **dump of the MySQL-8.0 production data into the new MySQL 8.4**,
+  then apply migrations 001–004.
+- After cutover, new bookings/orders are written to **MySQL 8.4 only**; the old
+  8.0 is frozen and does not see them.
+- **Rollback = switch traffic back to the old VM/MySQL 8.0**, which loses anything
   booked on the new system during the live window.
 
-Mitigations (pick per your risk tolerance):
+Mitigations for Option B (pick per your risk tolerance):
 1. **Short, monitored window** at low-traffic time; roll back fast if needed so
    few/no bookings are lost, and re-enter any by hand.
-2. **Dump-and-load at the last moment**: take the final MySQL-8 dump immediately
-   before cutover and load it into 9.6, so 9.6 starts current.
-3. Keep the old MySQL 8 **frozen/read-only** during the window so it stays a
+2. **Dump-and-load at the last moment**: take the final MySQL-8.0 dump immediately
+   before cutover and load it into 8.4, so 8.4 starts current.
+3. Keep the old MySQL 8.0 **frozen/read-only** during the window so it stays a
    clean fallback.
 
-> If instant, zero-loss rollback matters more than the version bump, the
-> alternative is to run the new app against the **existing MySQL 8** (SQLAlchemy
-> works fine with 8) — then old and new share one DB and rollback is just a proxy
-> flip. Choose 9.6 only if the upgrade itself is a goal.
+> Since 8.0 → 8.4 is the same family, dump/restore between them is clean. Choose
+> Option B only if moving to the 8.4 LTS is a goal; otherwise Option A gives the
+> simpler, zero-loss rollback.
 
-Dumping MySQL 8 → importing into 9.6 is normally clean; keep the charset/collation
+Dumping MySQL 8.0 → importing into 8.4 is normally clean; keep the charset/collation
 and backslash handling from [`DB-Prod-Copy-Guide.md`](DB-Prod-Copy-Guide.md).
 
 ---
@@ -98,9 +103,9 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 ```
 
-**MySQL 9.6** — Debian/Ubuntu's own repos only carry 8.0/8.4, so add MySQL's
-official APT repo (the "Innovation" channel gives the 9.x line). Skip if MySQL
-runs on a remote host.
+**MySQL 8.4 (LTS)** — Ubuntu/Debian default repos carry 8.0 (or MariaDB), not
+8.4, so add MySQL's official APT repo and pick the **8.4-LTS** channel. Skip if
+MySQL runs on a remote host.
 
 ```bash
 # Grab the current mysql-apt-config from https://dev.mysql.com/downloads/repo/apt/
@@ -108,45 +113,18 @@ runs on a remote host.
 cd /tmp
 wget https://dev.mysql.com/get/mysql-apt-config_0.8.34-1_all.deb
 sudo dpkg -i mysql-apt-config_0.8.34-1_all.deb
-# In the dialog choose the "mysql-innovation" series (9.x); LTS = 8.4, default = 8.0.
+# In the dialog choose the "mysql-8.4-lts" series (NOT innovation/9.x, NOT 8.0).
 
 sudo apt update
-sudo mysql_secure_installation       # run after install below
-```
-
-**Pin exactly 9.6 and hold it.** The APT repo usually serves only the latest
-release per channel, so first check whether 9.6 is still available:
-
-```bash
-apt list -a mysql-community-server   # is a 9.6.x version listed?
-```
-
-- **If 9.6 is listed** — install the suite pinned to that exact version string:
-  ```bash
-  V=9.6.0-1debian12                  # ← use the EXACT string from `apt list -a`
-  sudo apt install -y mysql-community-server=$V mysql-community-client=$V
-  ```
-- **If 9.6 is gone** (a newer 9.x is current) — install the 9.6 APT bundle from
-  the archives at https://downloads.mysql.com/archives/community/ :
-  ```bash
-  cd /tmp
-  wget https://downloads.mysql.com/archives/get/p/23/file/mysql-server_9.6.0-1ubuntu24.04_amd64.deb-bundle.tar
-  mkdir mysql96 && tar -xf mysql-server_9.6.0-*.deb-bundle.tar -C mysql96
-  sudo apt install -y ./mysql96/*.deb
-  ```
-
-Then freeze it so `apt upgrade` never moves it off 9.6, start it, and verify:
-
-```bash
-dpkg -l | awk '/^ii/ && $2 ~ /^mysql-/ {print $2}' | xargs sudo apt-mark hold
-apt-mark showhold
+sudo apt install -y mysql-community-server
 sudo systemctl enable --now mysql
 sudo mysql_secure_installation
-mysql --version                      # confirm 9.6
+mysql --version                      # confirm 8.4.x
 ```
 
-> To upgrade later, release the hold first:
-> `dpkg -l | awk '/^ii/ && $2 ~ /^mysql-/ {print $2}' | xargs sudo apt-mark unhold`
+The 8.4-LTS channel keeps you on 8.4.x **patch** updates and never jumps to 9.x,
+so no version pinning is needed. (To freeze one specific 8.4 patch anyway:
+`dpkg -l | awk '/^ii/ && $2 ~ /^mysql-/ {print $2}' | xargs sudo apt-mark hold`.)
 
 Set the VM timezone (the scheduler pins Asia/Jerusalem, but keep the host aligned):
 
@@ -157,14 +135,14 @@ sudo timedatectl set-timezone Asia/Jerusalem
 ## 2. Get the code
 
 ```bash
-sudo -u baco git clone <your-repo-url> /opt/baco/app
+sudo -u baco git clone https://github.com/erezsh98/Baco-New.git /opt/baco/app
 # (or clone elsewhere and point the unit files' paths accordingly)
 ```
 
 The unit files assume `/opt/baco/backend` and `/opt/baco/frontend`. Either clone
 so those resolve, or edit the paths in the `deploy/*.service` files.
 
-## 3. Database (MySQL 9.6)
+## 3. Database (MySQL 8.4)
 
 Create the DB and a least-privilege app user, then load production data:
 
@@ -207,10 +185,10 @@ SMTP_PORT=587
 SMTP_USER=...
 SMTP_PASSWORD=...
 EMAIL_FROM=servicebaco@gmail.com
-# SMS (019), Anthropic:
+# SMS (019):
 SMS_USERNAME=...
 SMS_PASSWORD=...
-ANTHROPIC_API_KEY=...
+# (No ANTHROPIC_API_KEY here — the AI chat runs in the frontend, not the backend.)
 # Scheduler — choose ONE model (see step 8):
 ENABLE_SCHEDULER=true               # in-process; single instance only
 SCHEDULER_TOKEN=                    # set only if using Cloud Scheduler
@@ -319,7 +297,7 @@ sudo systemctl restart baco-backend baco-frontend
 low TTL) that points `baco.co.il` at either the **old VM** or the **new VM**.
 
 **Cutover (low-traffic window):**
-1. Final MySQL-8 dump → load into MySQL 9.6 (so it starts current); re-apply
+1. Final MySQL-8.0 dump → load into MySQL 8.4 (so it starts current); re-apply
    migrations 001–004.
 2. Freeze the old system (maintenance page / stop old app) so no new writes go to
    MySQL 8.
@@ -328,9 +306,9 @@ low TTL) that points `baco.co.il` at either the **old VM** or the **new VM**.
 5. Run the step-9 smoke test, including one real payment.
 
 **Rollback (if it fails):**
-1. Point the switch back at the old VM (old MySQL 8, old app, old cron).
+1. Point the switch back at the old VM (old MySQL 8.0, old app, old cron).
 2. Re-enter by hand any bookings made on the new system during the window (they
-   live in MySQL 9.6, not MySQL 8) — this is the data-loss cost of the version
+   live in MySQL 8.4, not MySQL 8.0) — this is the data-loss cost of the version
    split; keeping the window short minimises it.
 
 Keep the old VM (stopped but intact), a VM/disk snapshot, and the pre-cutover
@@ -340,7 +318,7 @@ dumps for a defined grace period (e.g. 2 weeks) before decommissioning.
 
 ## Gotchas checklist
 
-- `DATABASE_URL` → the real MySQL 9.6 on `127.0.0.1` (native, so `localhost` is
+- `DATABASE_URL` → the real MySQL 8.4 on `127.0.0.1` (native, so `localhost` is
   correct here — unlike the Docker case).
 - `DEV_MODE=false` in production (otherwise payments are bypassed).
 - `APP_BASE_URL` / `FRONTEND_BASE_URL` = `https://baco.co.il` so Pelecard
