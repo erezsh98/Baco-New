@@ -274,16 +274,21 @@ def get_club_groups(club_id: int, db: Session = Depends(get_db), admin: User = D
         ClubTicket.ticket_type != "0",
         ClubTicket.ticket_type != CREDIT_TYPE,
     ).all()
-    return [
-        {"id": t.id, "name": t.description or t.ticket_type, "ticket_type": t.ticket_type}
-        for t in tickets
-    ]
+    # A "group" is a ticket_type — show that as the name, one entry per distinct
+    # type. Keep one ClubTicket id per type for the add-user POST (which derives
+    # the ticket_type from it), so duplicate products of the same type collapse.
+    seen: dict[str, dict] = {}
+    for t in tickets:
+        tt = (t.ticket_type or "").strip()
+        if not tt or tt in seen:
+            continue
+        seen[tt] = {"id": t.id, "name": tt, "ticket_type": tt}
+    return list(seen.values())
 
 
 @router.get("/clubs/{club_id}/users")
 def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     _require_manages(db, admin.id, club_id)
-    from app.models.ticket import ClubTicket
     permits = db.query(ClubCustomerPermittedTicket).filter(
         ClubCustomerPermittedTicket.club_id == club_id
     ).all()
@@ -292,18 +297,14 @@ def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = De
         u = p.user
         if not u:
             continue
-        # resolve a friendly group name from a ClubTicket of the same type
-        ticket = db.query(ClubTicket).filter(
-            ClubTicket.club_id == club_id,
-            ClubTicket.ticket_type == p.ticket_type,
-        ).first()
         result.append({
             "id": p.id,
             "user_id": u.id,
             "user_name": f"{u.first_name} {u.last_name}",
             "email": u.username,
             "phone": u.phone_number or "",
-            "group": ticket.description if ticket and ticket.description else p.ticket_type,
+            # Group = the permission's ticket_type (not a ClubTicket description).
+            "group": (p.ticket_type or "").strip(),
             "ticket_type": p.ticket_type,
             "end_date": str(p.end_date) if p.end_date else None,
         })
@@ -404,7 +405,7 @@ def add_club_user(club_id: int, body: AddUserBody, db: Session = Depends(get_db)
             ticket_cost=group.ticket_cost,
         ))
 
-    group_name = group.description or ticket_type
+    group_name = ticket_type   # group is the ticket_type
     club = db.query(Club).filter(Club.id == club_id).first()
     audit.record(
         db, admin, "permission.grant",
@@ -421,7 +422,7 @@ def add_club_user(club_id: int, body: AddUserBody, db: Session = Depends(get_db)
     send_add_to_group_email(user, club, body.end_date, ticket_type)
 
     return {
-        "message": f"המשתמש {user.first_name} {user.last_name} צורף לקבוצה {group.description or ticket_type}",
+        "message": f"המשתמש {user.first_name} {user.last_name} צורף לקבוצה {ticket_type}",
         "user_name": f"{user.first_name} {user.last_name}",
     }
 
