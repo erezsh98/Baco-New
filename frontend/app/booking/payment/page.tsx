@@ -191,8 +191,9 @@ export default function PaymentPage() {
         ) : (
         <div className="bg-white rounded-2xl shadow p-6 space-y-4">
           <div className="flex gap-4">
-            <button onClick={() => setPayMethod("credit")}
-              className={`flex-1 py-2 rounded-lg border-2 transition ${payMethod === "credit" ? "border-court bg-mint font-bold" : "border-line"}`}>
+            <button onClick={() => setPayMethod("credit")} disabled={tickets.length > 0}
+              title={tickets.length > 0 ? "יש לך כרטיסייה/מנוי שמכסה הזמנה זו — התשלום מתבצע בכרטיסייה" : undefined}
+              className={`flex-1 py-2 rounded-lg border-2 transition ${payMethod === "credit" ? "border-court bg-mint font-bold" : "border-line"} disabled:opacity-40 disabled:cursor-not-allowed`}>
               כרטיס אשראי
             </button>
             <button onClick={() => setPayMethod("ticket")} disabled={tickets.length === 0}
