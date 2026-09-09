@@ -13,7 +13,7 @@ from app.models.court import AvailableCourtSlot
 from app.models.order import CourtOrder
 from app.models.user import User
 from app.services import audit
-from app.services.pricing import paid_price
+from app.services.pricing import MEMBER_TYPE, paid_price
 from app.services.scheduler import rebuild
 
 
@@ -269,6 +269,17 @@ def get_club_groups(club_id: int, db: Session = Depends(get_db), admin: User = D
     """
     _require_manages(db, admin.id, club_id)
     from app.models.ticket import ClubTicket
+    # Public (פתוח לכולם) ticket types carry a blanket user_id=NULL permission, so
+    # everyone at the club can already use them — a per-user grant is redundant.
+    # Hide those from the group dropdown. מנוי / חבר מועדון are always per-user
+    # (subscription / member pricing), so keep them even if flagged public.
+    public = {
+        (r[0] or "").strip()
+        for r in db.query(ClubCustomerPermittedTicket.ticket_type).filter(
+            ClubCustomerPermittedTicket.club_id == club_id,
+            ClubCustomerPermittedTicket.user_id.is_(None),
+        ).all()
+    } - {SUBSCRIPTION_TYPE, MEMBER_TYPE}
     tickets = db.query(ClubTicket).filter(
         ClubTicket.club_id == club_id,
         ClubTicket.ticket_type != "0",
@@ -280,7 +291,7 @@ def get_club_groups(club_id: int, db: Session = Depends(get_db), admin: User = D
     seen: dict[str, dict] = {}
     for t in tickets:
         tt = (t.ticket_type or "").strip()
-        if not tt or tt in seen:
+        if not tt or tt in seen or tt in public:
             continue
         seen[tt] = {"id": t.id, "name": tt, "ticket_type": tt}
     return list(seen.values())
