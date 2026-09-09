@@ -55,6 +55,31 @@ and backslash handling from [`DB-Prod-Copy-Guide.md`](DB-Prod-Copy-Guide.md).
 
 ## 1. Provision the VM
 
+### VM sizing (≈200 orders/day)
+
+That volume is very light — a few thousand requests/day, a handful of concurrent
+users. The sizing driver is fitting four processes in RAM (nginx + FastAPI +
+Next.js + MySQL) and surviving the `next build` memory spike, not traffic.
+
+| | Recommendation |
+|---|---|
+| **Machine type** | **`e2-medium`** — 2 vCPU, **4 GB RAM** (E2 = GCP's cost-optimized family) |
+| **Disk** | **~30 GB balanced (SSD) persistent disk** — OS + app + small DB + logs + local backups |
+| **Region** | **`me-west1` (Tel Aviv)** — low latency for Israeli users + data residency |
+| **Provisioning** | **Standard VM, not Spot/Preemptible** (Spot instances get reclaimed) |
+
+Why `e2-medium` and not smaller: the real memory peak is **`next build`** during
+deploys. On a 2 GB box (`e2-small`) it can OOM-fail; 4 GB handles the build and
+the four running processes with headroom (MySQL buffer pool ~1 GB, Next ~250 MB,
+uvicorn ~200 MB, nginx+OS ~300 MB). CPU is barely used at this load.
+
+Alternatives:
+- **`e2-small` (2 GB)** — only if you offload MySQL to **Cloud SQL (8.4)** or build
+  the frontend elsewhere; too tight for local MySQL + `next build`.
+- **`e2-standard-2` (2 vCPU, 8 GB)** — easy future-proofing at a bit more cost.
+
+### Base setup
+
 A Debian/Ubuntu GCP VM (commands below assume `apt`). Create a service user and
 a home for the app:
 
