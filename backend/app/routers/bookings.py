@@ -129,7 +129,7 @@ def create_booking(req: CreateBookingRequest, db: Session = Depends(get_db), cur
         AvailableCourtSlot.taken.is_(None),
     ).first()
     if not slot:
-        raise HTTPException(status_code=409, detail="Court slot is no longer available")
+        raise HTTPException(status_code=409, detail="המגרש כבר נתפס. אנא בחרו מגרש אחר.")
 
     template = slot.rental_template
     amount = template.non_member_price
@@ -263,7 +263,7 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
     if not slot:
         raise HTTPException(status_code=404, detail="Court slot not found")
     if slot.taken is not None:
-        raise HTTPException(status_code=409, detail="Court slot is no longer available")
+        raise HTTPException(status_code=409, detail="המגרש כבר נתפס. אנא בחרו מגרש אחר.")
 
     template = slot.rental_template
     amount, _is_member = effective_price(db, current_user, slot)
@@ -306,7 +306,7 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
     )
     if claimed == 0:
         db.rollback()  # discards the pending order too — nothing is left behind
-        raise HTTPException(status_code=409, detail="Court slot is no longer available")
+        raise HTTPException(status_code=409, detail="המגרש כבר נתפס. אנא בחרו מגרש אחר.")
 
     # Decrement the ticket's punch balance by 1 (unless unlimited -1000).
     # Mirrors PaymentController.updateNumOfPunches().
