@@ -228,7 +228,7 @@ def tickets_for_slot(slot_id: int, db: Session = Depends(get_db), current_user: 
     """
     slot = db.query(AvailableCourtSlot).filter(AvailableCourtSlot.id == slot_id).first()
     if not slot:
-        raise HTTPException(status_code=404, detail="Court slot not found")
+        raise HTTPException(status_code=404, detail="המגרש לא נמצא.")
 
     tickets, allowed = eligible_tickets_for_slot(db, current_user, slot)
     # Surface זיכוי (refund credit) tickets first so the user spends credit before

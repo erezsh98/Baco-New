@@ -261,7 +261,7 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
 
     slot = db.query(AvailableCourtSlot).filter(AvailableCourtSlot.id == req.slot_id).first()
     if not slot:
-        raise HTTPException(status_code=404, detail="Court slot not found")
+        raise HTTPException(status_code=404, detail="המגרש לא נמצא.")
     if slot.taken is not None:
         raise HTTPException(status_code=409, detail="המגרש כבר נתפס. אנא בחרו מגרש אחר.")
 
