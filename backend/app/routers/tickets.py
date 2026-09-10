@@ -181,7 +181,12 @@ def list_club_tickets(club_id: int, db: Session = Depends(get_db), current_user:
 @router.get("/my")
 def list_my_tickets(club_id: int | None = None, include_all: bool = False, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     today = date.today()
-    query = db.query(CustomerTicket).filter(CustomerTicket.user_id == current_user.id)
+    query = db.query(CustomerTicket).filter(
+        CustomerTicket.user_id == current_user.id,
+        # Exclude not-yet-paid placeholders (end_date == UNPAID_DATE) — a purchase
+        # abandoned at the payment screen leaves such a row; it isn't a real ticket.
+        CustomerTicket.end_date != UNPAID_DATE,
+    )
     # By default return only valid (in-date, punches remaining) tickets.
     # include_all=true also returns used-up / expired tickets, each flagged is_valid.
     if not include_all:
