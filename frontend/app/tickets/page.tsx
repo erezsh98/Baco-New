@@ -11,6 +11,9 @@ type Ticket = {
 
 const today = new Date().toISOString().split("T")[0];
 const CREDIT_TYPE = "זיכוי";
+// Not shown on this page: מנוי (subscription) and חבר מועדון (member pricing) are
+// permissions, not purchasable כרטיסיות the user tracks here.
+const HIDDEN_TYPES = new Set(["מנוי", "חבר מועדון"]);
 
 type ClubGroup = { club: string; others: Ticket[]; credits: Ticket[] };
 
@@ -113,8 +116,9 @@ export default function TicketsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const validGroups = groupByClub(tickets.filter(t => t.is_valid));
-  const completedGroups = groupByClub(tickets.filter(t => !t.is_valid));
+  const visible = tickets.filter(t => !HIDDEN_TYPES.has((t.ticket_type || "").trim()));
+  const validGroups = groupByClub(visible.filter(t => t.is_valid));
+  const completedGroups = groupByClub(visible.filter(t => !t.is_valid));
   const validCount = cardCount(validGroups);
   const completedCount = cardCount(completedGroups);
 
@@ -131,7 +135,7 @@ export default function TicketsPage() {
 
         {loading && <p className="text-center text-muted">טוען...</p>}
 
-        {!loading && tickets.length === 0 && (
+        {!loading && visible.length === 0 && (
           <div className="bg-white rounded-2xl shadow p-8 text-center">
             <p className="text-muted mb-4">אין כרטיסיות</p>
             <Link href="/tickets/buy" className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark">
@@ -140,7 +144,7 @@ export default function TicketsPage() {
           </div>
         )}
 
-        {!loading && tickets.length > 0 && (
+        {!loading && visible.length > 0 && (
           <div className="space-y-8">
             {/* valid */}
             <section>
