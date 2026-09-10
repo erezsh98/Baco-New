@@ -6,17 +6,49 @@ terminal credentials and returns the payment-form **HTML** to embed (not a URL).
 On completion Pelecard redirects the form to goodUrl/errorUrl with a fixed-width
 `result` string that encodes status/amount/approval (see routers/payment.py).
 """
+import os
+from pathlib import Path
+
 import httpx
 
 from app.config import settings
 
-# club u_name -> Pelecard terminal credentials (from .env)
-CLUB_CREDENTIALS = {
-    "matnasim":     {"term": settings.pelecard_matnasim_term,     "password": settings.pelecard_matnasim_password},
-    "evenyhuda":    {"term": settings.pelecard_evenyhuda_term,    "password": settings.pelecard_evenyhuda_password},
-    "kadimatennis": {"term": settings.pelecard_kadimatennis_term, "password": settings.pelecard_kadimatennis_password},
-    "shasho":       {"term": settings.pelecard_shasho_term,       "password": settings.pelecard_shasho_password},
-}
+
+def _env_file_values() -> dict[str, str]:
+    """Parse KEY=VALUE lines from the backend .env (the same file pydantic loads),
+    so club credentials work whether they live in .env (dev) or in real environment
+    variables (production / systemd). Best-effort — a missing file is fine."""
+    values: dict[str, str] = {}
+    try:
+        for line in Path(".env").read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            values[k.strip()] = v.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return values
+
+
+def club_credentials(club_uname: str) -> dict[str, str] | None:
+    """Pelecard terminal credentials for a club, by its u_name.
+
+    Read dynamically from env vars named PELECARD_<UNAME>_TERM /
+    PELECARD_<UNAME>_PASSWORD (u_name upper-cased), so a new club is added by an
+    env change only — no code edit. Real environment variables win over .env.
+    Returns None when no terminal is configured for the club.
+    """
+    key = (club_uname or "").strip().upper()
+    if not key:
+        return None
+    file_vals = _env_file_values()
+    term = os.environ.get(f"PELECARD_{key}_TERM") or file_vals.get(f"PELECARD_{key}_TERM")
+    if not term:
+        return None
+    password = (os.environ.get(f"PELECARD_{key}_PASSWORD")
+                or file_vals.get(f"PELECARD_{key}_PASSWORD") or "")
+    return {"term": term, "password": password}
 
 def _looks_like_payment_form(html: str) -> bool:
     """A successful ajaxPage response is the payment-form HTML (contains the
@@ -34,7 +66,7 @@ def build_pelecard_iframe(order_id: int, amount_nis: float, club_uname: str, pur
     it drops frmAction=CreateToken so charges are regular one-time sales rather
     than tokenized "הוראת קבע" transactions (the token was never reused).
     """
-    creds = CLUB_CREDENTIALS.get(club_uname)
+    creds = club_credentials(club_uname)
     if not creds or not creds.get("term"):
         raise ValueError(f"No Pelecard credentials for club: {club_uname}")
 

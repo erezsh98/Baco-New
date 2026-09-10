@@ -8,14 +8,11 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 1440
 
     pelecard_gateway_url: str = "https://gateway.pelecard.biz/Iframe"
-    pelecard_matnasim_term: str = ""
-    pelecard_matnasim_password: str = ""
-    pelecard_evenyhuda_term: str = ""
-    pelecard_evenyhuda_password: str = ""
-    pelecard_kadimatennis_term: str = ""
-    pelecard_kadimatennis_password: str = ""
-    pelecard_shasho_term: str = ""
-    pelecard_shasho_password: str = ""
+    # Per-club Pelecard terminal credentials are NOT declared here. They are read
+    # dynamically by club u_name from env vars named PELECARD_<UNAME>_TERM /
+    # PELECARD_<UNAME>_PASSWORD — see app/services/payment.py:club_credentials().
+    # Adding a club is therefore an env-only change (no code edit). The
+    # `extra = "ignore"` in Config below lets those vars pass without a startup error.
 
     sms_username: str = ""
     sms_password: str = ""
@@ -46,6 +43,7 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        extra = "ignore"   # allow per-club PELECARD_<UNAME>_* vars (read dynamically)
 
 
 settings = Settings()
