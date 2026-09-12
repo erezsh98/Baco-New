@@ -53,6 +53,19 @@ def _is_renew_end(end: date | None) -> bool:
     return end is not None and end.year >= 2050
 
 
+SPECIAL_MAX_DAYS = 6   # יום מיוחד: a bounded range of 1..6 days (< a week)
+PERIOD_MIN_DAYS = 7    # תקופה: a week or more
+
+
+def _span_days(start: date, end: date) -> int:
+    return (end - start).days + 1
+
+
+def _is_special_range(start: date, end: date) -> bool:
+    """A יום מיוחד range: bounded and shorter than a week (overrides periods)."""
+    return not _is_renew_end(end) and _span_days(start, end) <= SPECIAL_MAX_DAYS
+
+
 def _period_status(start: date, end: date, today: date) -> str:
     if end < today:
         return "ended"      # הסתיים
@@ -246,21 +259,23 @@ def get_court(court_number: int, db: Session = Depends(get_db), manager: ClubMan
         base.update({"start_date": str(start), "end_date": str(RENEW_END)})
         return base
 
-    # period model — list distinct (start, end) sets
+    # period model — list distinct (start, end) sets, split into periods (>= 7
+    # days) and ימים מיוחדים (< 7 days, which override periods on their dates).
     groups: dict[tuple[date, date], int] = defaultdict(int)
     for t in active:
         if _is_renew_end(t.end_effective_date):
             continue
         groups[(t.start_effective_date, t.end_effective_date)] += 1
-    periods = [
-        {
+    periods, special_days = [], []
+    for (s, e) in sorted(groups):
+        entry = {
             "start_date": str(s), "end_date": str(e),
             "status": _period_status(s, e, today),
             "editable": e >= today,
         }
-        for (s, e) in sorted(groups)
-    ]
+        (special_days if _is_special_range(s, e) else periods).append(entry)
     base["periods"] = periods
+    base["special_days"] = special_days
     return base
 
 
@@ -297,7 +312,7 @@ SURFACE_TYPES = {"קשה", "חימר", "דשא", "חול"}   # allowed court sur
 
 class MatrixSave(BaseModel):
     court_number: int
-    model: str = "auto"               # "auto" (renew) | "period"
+    model: str = "auto"               # "auto" (renew) | "period" | "special" (יום מיוחד)
     start_date: date
     end_date: date
     orig_start: date | None = None    # period edit: identifies the period being replaced
@@ -339,8 +354,10 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
 
     active = _active_templates(db, manager.club_id, payload.court_number)
     current_model = _model_of(active)
-    target_model = payload.model if payload.model in ("auto", "period") else "auto"
-    switching = bool(active) and target_model != current_model
+    target_model = payload.model if payload.model in ("auto", "period", "special") else "auto"
+    # Only leaving the (disabled) renew/auto model wipes everything. period and
+    # special coexist on the same court, so switching between them is NOT a wipe.
+    switching = bool(active) and current_model == "auto"
 
     # ---- Resolve which templates to deactivate, the old open-cells, and the
     #      date window for the block-conflict check. ----
@@ -353,51 +370,62 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
         old_cells = _open_cells(active)
         conflict_from, conflict_to = today, None
     else:
-        # Period.
+        # Bounded model: תקופה (>= 7 days) or יום מיוחד (1..6 days).
+        is_special = target_model == "special"
+        kind_label = "יום מיוחד" if is_special else "תקופה"
         start_date, end_date = payload.start_date, payload.end_date
         if start_date > end_date:
             raise HTTPException(status_code=400, detail="תאריך התחלה מאוחר מתאריך הסיום")
+        span = _span_days(start_date, end_date)
+        if is_special and span > SPECIAL_MAX_DAYS:
+            raise HTTPException(status_code=400, detail=f"יום מיוחד יכול להימשך עד {SPECIAL_MAX_DAYS} ימים (פחות משבוע).")
+        if not is_special and span < PERIOD_MIN_DAYS:
+            raise HTTPException(status_code=400, detail=f"תקופה חייבת להימשך לפחות {PERIOD_MIN_DAYS} ימים (שבוע).")
 
         if switching:
-            # renew -> period: wipe the renew schedule, create this first period.
+            # renew -> bounded: wipe the renew schedule, create this first set.
             to_deactivate = active
             old_cells = _open_cells(active)
             conflict_from, conflict_to = today, None
-            other_periods: list[tuple[date, date]] = []
+            other_ranges: list[tuple[date, date]] = []
         else:
-            # already in period model
-            period_groups = {
+            # Already in the bounded model. Overlap is checked only within the
+            # SAME class (period vs period, or special vs special) — a special
+            # day is MEANT to overlap a period.
+            same_class_groups = {
                 (t.start_effective_date, t.end_effective_date)
-                for t in active if not _is_renew_end(t.end_effective_date)
+                for t in active
+                if not _is_renew_end(t.end_effective_date)
+                and _is_special_range(t.start_effective_date, t.end_effective_date) == is_special
             }
             if payload.orig_start and payload.orig_end:
-                # editing an existing period
+                # editing an existing set
                 if payload.orig_end < today:
-                    raise HTTPException(status_code=400, detail="לא ניתן לערוך תקופה שהסתיימה")
+                    raise HTTPException(status_code=400, detail=f"לא ניתן לערוך {kind_label} שהסתיים/ה")
                 edited = [
                     t for t in active
                     if t.start_effective_date == payload.orig_start and t.end_effective_date == payload.orig_end
                 ]
                 if not edited:
-                    raise HTTPException(status_code=404, detail="התקופה לעריכה לא נמצאה")
+                    raise HTTPException(status_code=404, detail=f"ה{kind_label} לעריכה לא נמצא/ה")
                 to_deactivate = edited
                 old_cells = _open_cells(edited)
                 conflict_from = max(today, payload.orig_start)
                 conflict_to = payload.orig_end
-                other_periods = [p for p in period_groups if p != (payload.orig_start, payload.orig_end)]
+                other_ranges = [p for p in same_class_groups if p != (payload.orig_start, payload.orig_end)]
             else:
-                # brand-new period
+                # brand-new set
                 to_deactivate = []
                 old_cells = set()
                 conflict_from, conflict_to = today, None
-                other_periods = list(period_groups)
+                other_ranges = list(same_class_groups)
 
-        # No overlapping date ranges with other periods on this court.
-        for ps, pe in other_periods:
+        # No overlapping date ranges with others of the SAME class on this court.
+        for ps, pe in other_ranges:
             if not (end_date < ps or start_date > pe):
                 raise HTTPException(
                     status_code=400,
-                    detail=f"התקופה חופפת לתקופה קיימת ({ps:%d/%m/%Y}–{pe:%d/%m/%Y})",
+                    detail=f"ה{kind_label} חופף/ת ל{kind_label} קיים/ת ({ps:%d/%m/%Y}–{pe:%d/%m/%Y})",
                 )
 
     # ---- Block-conflict check: cells that were open and are now removed. ----
@@ -449,7 +477,7 @@ def save_matrix(payload: MatrixSave, db: Session = Depends(get_db), manager: Clu
     ).update({"surface_type": surface_type}, synchronize_session=False)
 
     club_name = manager.club.club_name if manager.club else None
-    model_label = "קבוע" if target_model == "auto" else "משתנה לפי תקופה"
+    model_label = {"auto": "קבוע", "special": "יום מיוחד"}.get(target_model, "משתנה לפי תקופה")
     when = "ללא תאריך סיום" if target_model == "auto" else f"{start_date:%d/%m/%Y}–{end_date:%d/%m/%Y}"
     if switching:
         audit.record(

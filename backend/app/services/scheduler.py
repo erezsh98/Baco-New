@@ -8,6 +8,14 @@ from app.models.court import AvailableCourtSlot, RentalTemplate, HolidayDate, Ho
 from app.models.order import CourtOrder, UsersCart
 
 NUM_DAYS_AHEAD = 30  # default slot-generation window when a club has no slot_window_days set
+SPECIAL_MAX_DAYS = 6  # יום מיוחד spans 1-6 days (< a week) and overrides the period on its dates
+
+
+def _is_special_template(t) -> bool:
+    """A יום מיוחד: a bounded template shorter than a week. It overrides the
+    period/renew schedule on the dates it covers."""
+    s, e = t.start_effective_date, t.end_effective_date
+    return bool(s and e) and e.year < 2050 and (e - s).days + 1 <= SPECIAL_MAX_DAYS
 
 
 def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
@@ -41,6 +49,17 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
             tmpl_q = tmpl_q.filter(RentalTemplate.club_id == club_id)
         templates = tmpl_q.all()
 
+        # יום מיוחד override precedence: collect the dates each short (<7-day)
+        # template covers per (club, court); on those dates the broader period/
+        # renew templates are skipped, so the special day replaces them.
+        special_dates: set[tuple[int, int, date]] = set()
+        for t in templates:
+            if _is_special_template(t):
+                d = t.start_effective_date
+                while d <= t.end_effective_date:
+                    special_dates.add((t.club_id, t.court_number, d))
+                    d += timedelta(days=1)
+
         # Physical slots that survived the delete because they carry an order
         # (a confirmed booking OR a pending-in-cart hold). A schedule edit
         # deactivates the old template and creates a NEW one with a different
@@ -64,6 +83,7 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
 
         for tmpl in templates:
             club = tmpl.club
+            is_special_tmpl = _is_special_template(tmpl)
             days = [int(d) for d in tmpl.days_str.split(",") if d.strip()]
             # Per-club generation window; NULL falls back to the 30-day default.
             window_days = club.slot_window_days or NUM_DAYS_AHEAD
@@ -72,6 +92,11 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
                 target_date = today + timedelta(days=offset)
                 # day_of_week: 1=Sunday ... 7=Saturday (matching original app)
                 dow = target_date.isoweekday() % 7 + 1  # isoweekday Mon=1..Sun=7 → Sun=1..Sat=7
+
+                # יום מיוחד override: a broader (period/renew) template does not
+                # generate on a date that a short special template covers.
+                if not is_special_tmpl and (tmpl.club_id, tmpl.court_number, target_date) in special_dates:
+                    continue
 
                 # Honor the template's effective date range (legacy behavior):
                 # renew-model templates end in 2050 so they always pass; period
