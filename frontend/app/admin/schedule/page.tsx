@@ -9,6 +9,19 @@ const PALETTE = [
   "#14b8a6", "#ef4444", "#a855f7", "#0ea5e9", "#f97316",
 ];
 const DAYS = [1, 2, 3, 4, 5, 6, 7];
+
+// The set of app weekdays (1=Sun..7=Sat) covered by an inclusive date range.
+// Used by ימים מיוחדים to restrict grid editing to the days actually in range.
+function weekdaysInRange(startISO: string, endISO: string): Set<number> {
+  const out = new Set<number>();
+  const s = new Date(`${startISO}T00:00:00Z`);
+  const e = new Date(`${endISO}T00:00:00Z`);
+  if (isNaN(s.getTime()) || isNaN(e.getTime()) || e < s) return out;
+  for (const d = new Date(s); d <= e; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.add(d.getUTCDay() + 1);   // getUTCDay 0=Sun..6=Sat → app 1=Sun..7=Sat
+  }
+  return out;
+}
 const DAY_LABELS: Record<number, string> = {
   1: "ראשון", 2: "שני", 3: "שלישי", 4: "רביעי", 5: "חמישי", 6: "שישי", 7: "שבת",
 };
@@ -236,8 +249,8 @@ export default function SchedulePage() {
   }
 
   function askDeletePeriod(p: Period) {
-    const label = model === "special" ? "יום מיוחד" : "תקופה";
-    if (!window.confirm(`למחוק את ה${label} ${p.start_date} – ${p.end_date}?`)) return;
+    const label = model === "special" ? "הימים המיוחדים" : "התקופה";
+    if (!window.confirm(`למחוק את ${label} ${p.start_date} – ${p.end_date}?`)) return;
     deletePeriod(p);
   }
 
@@ -271,6 +284,8 @@ export default function SchedulePage() {
   // ---- grid editing ----
   function applyBrush(day: number, hour: number) {
     if (readOnly) return;
+    // ימים מיוחדים: only days that fall within the chosen date range are editable.
+    if (model === "special" && startDate && endDate && !weekdaysInRange(startDate, endDate).has(day)) return;
     setDirty(true);
     const key = `${day}-${hour}`;
     setGrid(prev => {
@@ -335,7 +350,7 @@ export default function SchedulePage() {
     if (court == null) return;
     if ((model === "period" || model === "special") && (!startDate || !endDate)) {
       setMsgOk(false);
-      setMsg(model === "special" ? "יש להזין תאריך התחלה וסיום ליום מיוחד" : "יש להזין תאריך התחלה וסיום לתקופה");
+      setMsg(model === "special" ? "יש להזין תאריך התחלה וסיום לימים המיוחדים" : "יש להזין תאריך התחלה וסיום לתקופה");
       return;
     }
     if (!surfaceType) { setMsgOk(false); setMsg("יש לבחור סוג משטח"); return; }
@@ -398,6 +413,10 @@ export default function SchedulePage() {
   const showEditor = model === "auto" || (bounded && periodView === "editor");
   const editingExisting = bounded && !!origStart;
   const isSpecial = model === "special";
+  // ימים מיוחדים: weekdays actually within the chosen range (null = no restriction,
+  // i.e. period, or special before both dates are set). Grid days outside this are
+  // read-only, since availability is generated only for dates inside the range.
+  const specialAllowed = isSpecial && startDate && endDate ? weekdaysInRange(startDate, endDate) : null;
 
   // The list for the active tab (periods or ימים מיוחדים): newest-first, paginated.
   const activeList = isSpecial ? specialDays : periods;
@@ -453,13 +472,10 @@ export default function SchedulePage() {
             <span className="block text-sm font-medium text-ink mb-1">מודל לוח זמנים</span>
             <div className="flex gap-4 text-sm py-2">
               <label className="flex items-center gap-1 cursor-pointer">
-                <input type="radio" checked={model === "auto"} onChange={() => selectModel("auto")} /> קבוע
-              </label>
-              <label className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" checked={model === "period"} onChange={() => selectModel("period")} /> משתנה לפי תקופה
               </label>
               <label className="flex items-center gap-1 cursor-pointer">
-                <input type="radio" checked={model === "special"} onChange={() => selectModel("special")} /> יום מיוחד
+                <input type="radio" checked={model === "special"} onChange={() => selectModel("special")} /> ימים מיוחדים
               </label>
             </div>
           </div>
@@ -485,7 +501,7 @@ export default function SchedulePage() {
               <h2 className="font-semibold text-ink">{isSpecial ? "ימים מיוחדים" : "תקופות"} — מגרש {court}</h2>
               <div className="flex gap-2 flex-wrap">
                 <button onClick={newPeriod} className="bg-court text-white px-4 py-2 rounded-lg hover:bg-court-dark text-sm font-semibold">
-                  {isSpecial ? "יום מיוחד חדש" : "תקופה חדשה"}
+                  {isSpecial ? "ימים מיוחדים חדשים" : "תקופה חדשה"}
                 </button>
                 {!isSpecial && <button onClick={newFromLast} disabled={!periods.length}
                   className="border-2 border-court text-court px-4 py-2 rounded-lg hover:bg-mint text-sm font-semibold disabled:opacity-40">
@@ -499,10 +515,10 @@ export default function SchedulePage() {
               </div>
             </div>
             {isSpecial && (
-              <p className="text-xs text-muted mb-3">יום מיוחד (עד 6 ימים) גובר על התקופה בתאריכים שלו. לסגירה מלאה השתמשו בימי חג / סגירה.</p>
+              <p className="text-xs text-muted mb-3">ימים מיוחדים (עד 6 ימים) גוברים על התקופה בתאריכים שלהם. לסגירה מלאה השתמשו בימי חג / סגירה.</p>
             )}
             {activeList.length === 0 ? (
-              <p className="text-muted text-sm">{isSpecial ? 'לא הוגדרו ימים מיוחדים למגרש זה. לחצו "יום מיוחד חדש" כדי להתחיל.' : 'לא הוגדרו תקופות למגרש זה. לחצו "תקופה חדשה" כדי להתחיל.'}</p>
+              <p className="text-muted text-sm">{isSpecial ? 'לא הוגדרו ימים מיוחדים למגרש זה. לחצו "ימים מיוחדים חדשים" כדי להתחיל.' : 'לא הוגדרו תקופות למגרש זה. לחצו "תקופה חדשה" כדי להתחיל.'}</p>
             ) : (
               <>
                 <div className="overflow-x-auto">
@@ -559,9 +575,9 @@ export default function SchedulePage() {
                     onChange={e => { setEndDate(e.target.value); setDirty(true); }}
                     className="border rounded-lg px-3 py-2 disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-court" />
                 </div>
-                <p className="text-xs text-muted">{isSpecial ? "יום מיוחד: 1 עד 6 ימים (פחות משבוע). גובר על התקופה." : "תקופה: לפחות 7 ימים (שבוע)."}</p>
-                {editingExisting && <p className="text-xs text-muted">עריכת {isSpecial ? "יום מיוחד" : "תקופה"} קיים/ת — ניתן לשנות את תאריך הסיום בלבד.</p>}
-                {readOnly && <p className="text-xs text-amber-700 font-semibold">{isSpecial ? "יום מיוחד שהסתיים" : "תקופה שהסתיימה"} — צפייה בלבד.</p>}
+                <p className="text-xs text-muted">{isSpecial ? "ימים מיוחדים: 1 עד 6 ימים (פחות משבוע). גוברים על התקופה." : "תקופה: לפחות 7 ימים (שבוע)."}</p>
+                {editingExisting && <p className="text-xs text-muted">{isSpecial ? "עריכת ימים מיוחדים קיימים" : "עריכת תקופה קיימת"} — ניתן לשנות את תאריך הסיום בלבד.</p>}
+                {readOnly && <p className="text-xs text-amber-700 font-semibold">{isSpecial ? "ימים מיוחדים שהסתיימו" : "תקופה שהסתיימה"} — צפייה בלבד.</p>}
               </div>
             )}
 
@@ -643,18 +659,29 @@ export default function SchedulePage() {
                   {hours.map(h => (
                     <tr key={h}>
                       <td className="p-1 text-xs text-muted text-center sticky right-0 bg-white">{String(h).padStart(2, "0")}:00</td>
-                      {DAYS.map(d => (
+                      {DAYS.map(d => {
+                        const dayEditable = !specialAllowed || specialAllowed.has(d);
+                        return (
                         <td key={d} style={{ padding: 0 }}>
                           <div
-                            onMouseDown={() => { if (!readOnly) { painting.current = true; applyBrush(d, h); } }}
-                            onMouseEnter={() => { if (painting.current) applyBrush(d, h); }}
-                            className={readOnly ? "" : "cursor-pointer hover:opacity-80"}
-                            style={{ height: 28, minWidth: 60, background: cellColor(d, h), border: "1px solid #fff", boxShadow: cellForMember(d, h) ? "inset 0 0 0 2px #fde047" : undefined, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}
-                            title={`${DAY_LABELS[d]} ${String(h).padStart(2, "0")}:${String(cellOffset(d, h)).padStart(2, "0")}${cellForMember(d, h) ? " — למנויים בלבד" : ""}`}>
-                            {cellLabel(d, h)}
+                            onMouseDown={() => { if (!readOnly && dayEditable) { painting.current = true; applyBrush(d, h); } }}
+                            onMouseEnter={() => { if (painting.current && dayEditable) applyBrush(d, h); }}
+                            className={readOnly || !dayEditable ? "" : "cursor-pointer hover:opacity-80"}
+                            style={{ height: 28, minWidth: 60,
+                              background: dayEditable ? cellColor(d, h) : "#e5e7eb",
+                              opacity: dayEditable ? 1 : 0.5,
+                              cursor: dayEditable ? undefined : "not-allowed",
+                              border: "1px solid #fff",
+                              boxShadow: dayEditable && cellForMember(d, h) ? "inset 0 0 0 2px #fde047" : undefined,
+                              display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}
+                            title={dayEditable
+                              ? `${DAY_LABELS[d]} ${String(h).padStart(2, "0")}:${String(cellOffset(d, h)).padStart(2, "0")}${cellForMember(d, h) ? " — למנויים בלבד" : ""}`
+                              : `${DAY_LABELS[d]} — מחוץ לטווח הימים המיוחדים`}>
+                            {dayEditable ? cellLabel(d, h) : ""}
                           </div>
                         </td>
-                      ))}
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
