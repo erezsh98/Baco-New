@@ -38,9 +38,12 @@ export default function SchedulePage() {
   const [courts, setCourts] = useState<CourtInfo[]>([]);
   const [court, setCourt] = useState<number | null>(null);
 
-  const [model, setModel] = useState<"auto" | "period">("period");   // "קבוע" (auto) disabled — default to period
+  // Editing tab: "period" (משתנה לפי תקופה, default) | "special" (יום מיוחד).
+  // "auto" (קבוע) is disabled. period and special coexist on a court.
+  const [model, setModel] = useState<"auto" | "period" | "special">("period");
   const [serverModel, setServerModel] = useState<"auto" | "period">("period");
   const [periods, setPeriods] = useState<Period[]>([]);
+  const [specialDays, setSpecialDays] = useState<Period[]>([]);   // יום מיוחד ranges (< 7 days)
   const [periodView, setPeriodView] = useState<"list" | "editor">("list");
   const [periodPage, setPeriodPage] = useState(0);   // pagination for the periods list
   const [surfaceType, setSurfaceType] = useState("");   // court-level surface
@@ -121,6 +124,7 @@ export default function SchedulePage() {
         setOrigStart(null); setOrigEnd(null); setReadOnly(false);
       } else {
         setPeriods(d.periods || []);
+        setSpecialDays(d.special_days || []);
         setPeriodView("list");
       }
     } catch (e: any) {
@@ -181,15 +185,13 @@ export default function SchedulePage() {
   }
 
   // ---- model selector ----
-  function selectModel(m: "auto" | "period") {
-    // "קבוע" (auto) is disabled for now — only period schedules are selectable.
-    if (m !== "period") return;
+  function selectModel(m: "auto" | "period" | "special") {
+    // "קבוע" (auto) is disabled; only משתנה לפי תקופה / יום מיוחד are selectable.
+    if (m === "auto") return;
     if (m === model) return;
     if (!confirmDiscardIfDirty()) return;
-    setModel("period"); setMsg(""); setPending(null); setDirty(false);
-    // period: show the list (periods already loaded if server model was period, else empty)
-    if (serverModel === "period") setPeriodView("list");
-    else { setPeriods([]); setPeriodView("list"); }
+    setModel(m); setMsg(""); setPending(null); setDirty(false);
+    setPeriodView("list");
   }
 
   // ---- period actions ----
@@ -234,7 +236,8 @@ export default function SchedulePage() {
   }
 
   function askDeletePeriod(p: Period) {
-    if (!window.confirm(`למחוק את התקופה ${p.start_date} – ${p.end_date}?`)) return;
+    const label = model === "special" ? "יום מיוחד" : "תקופה";
+    if (!window.confirm(`למחוק את ה${label} ${p.start_date} – ${p.end_date}?`)) return;
     deletePeriod(p);
   }
 
@@ -330,7 +333,11 @@ export default function SchedulePage() {
 
   async function doSave(confirm = false) {
     if (court == null) return;
-    if (model === "period" && (!startDate || !endDate)) { setMsgOk(false); setMsg("יש להזין תאריך התחלה וסיום לתקופה"); return; }
+    if ((model === "period" || model === "special") && (!startDate || !endDate)) {
+      setMsgOk(false);
+      setMsg(model === "special" ? "יש להזין תאריך התחלה וסיום ליום מיוחד" : "יש להזין תאריך התחלה וסיום לתקופה");
+      return;
+    }
     if (!surfaceType) { setMsgOk(false); setMsg("יש לבחור סוג משטח"); return; }
     setSaving(true); setMsg("");
     const payload: any = {
@@ -387,11 +394,14 @@ export default function SchedulePage() {
     return c.forMember ? (off ? off + "★" : "★") : off;
   }
 
-  const showEditor = model === "auto" || (model === "period" && periodView === "editor");
-  const editingExisting = model === "period" && !!origStart;
+  const bounded = model === "period" || model === "special";
+  const showEditor = model === "auto" || (bounded && periodView === "editor");
+  const editingExisting = bounded && !!origStart;
+  const isSpecial = model === "special";
 
-  // Periods list: newest-first, paginated 10 at a time.
-  const sortedPeriods = [...periods].sort((a, b) => b.start_date.localeCompare(a.start_date));
+  // The list for the active tab (periods or ימים מיוחדים): newest-first, paginated.
+  const activeList = isSpecial ? specialDays : periods;
+  const sortedPeriods = [...activeList].sort((a, b) => b.start_date.localeCompare(a.start_date));
   const totalPages = Math.max(1, Math.ceil(sortedPeriods.length / PERIODS_PER_PAGE));
   const page = Math.min(periodPage, totalPages - 1);
   const pageItems = sortedPeriods.slice(page * PERIODS_PER_PAGE, page * PERIODS_PER_PAGE + PERIODS_PER_PAGE);
@@ -448,6 +458,9 @@ export default function SchedulePage() {
               <label className="flex items-center gap-1 cursor-pointer">
                 <input type="radio" checked={model === "period"} onChange={() => selectModel("period")} /> משתנה לפי תקופה
               </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="radio" checked={model === "special"} onChange={() => selectModel("special")} /> יום מיוחד
+              </label>
             </div>
           </div>
           <div>
@@ -465,26 +478,31 @@ export default function SchedulePage() {
 
         {loading && <p className="text-center text-muted">טוען...</p>}
 
-        {/* ---------- PERIOD LIST ---------- */}
-        {!loading && model === "period" && periodView === "list" && (
+        {/* ---------- PERIOD / SPECIAL-DAY LIST ---------- */}
+        {!loading && bounded && periodView === "list" && (
           <div className="bg-white rounded-xl shadow p-4 mb-4">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <h2 className="font-semibold text-ink">תקופות — מגרש {court}</h2>
+              <h2 className="font-semibold text-ink">{isSpecial ? "ימים מיוחדים" : "תקופות"} — מגרש {court}</h2>
               <div className="flex gap-2 flex-wrap">
-                <button onClick={newPeriod} className="bg-court text-white px-4 py-2 rounded-lg hover:bg-court-dark text-sm font-semibold">תקופה חדשה</button>
-                <button onClick={newFromLast} disabled={!periods.length}
+                <button onClick={newPeriod} className="bg-court text-white px-4 py-2 rounded-lg hover:bg-court-dark text-sm font-semibold">
+                  {isSpecial ? "יום מיוחד חדש" : "תקופה חדשה"}
+                </button>
+                {!isSpecial && <button onClick={newFromLast} disabled={!periods.length}
                   className="border-2 border-court text-court px-4 py-2 rounded-lg hover:bg-mint text-sm font-semibold disabled:opacity-40">
                   תקופה חדשה מבוסס על האחרונה
-                </button>
-                <button onClick={purgeOld} disabled={!hasOldPeriods || saving}
+                </button>}
+                {!isSpecial && <button onClick={purgeOld} disabled={!hasOldPeriods || saving}
                   title={!hasOldPeriods ? "אין תקופות שהסתיימו לפני יותר מ-30 יום" : ""}
                   className="border-2 border-red-400 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed">
                   מחק תקופות ישנות
-                </button>
+                </button>}
               </div>
             </div>
-            {periods.length === 0 ? (
-              <p className="text-muted text-sm">לא הוגדרו תקופות למגרש זה. לחצו "תקופה חדשה" כדי להתחיל.</p>
+            {isSpecial && (
+              <p className="text-xs text-muted mb-3">יום מיוחד (עד 6 ימים) גובר על התקופה בתאריכים שלו. לסגירה מלאה השתמשו בימי חג / סגירה.</p>
+            )}
+            {activeList.length === 0 ? (
+              <p className="text-muted text-sm">{isSpecial ? 'לא הוגדרו ימים מיוחדים למגרש זה. לחצו "יום מיוחד חדש" כדי להתחיל.' : 'לא הוגדרו תקופות למגרש זה. לחצו "תקופה חדשה" כדי להתחיל.'}</p>
             ) : (
               <>
                 <div className="overflow-x-auto">
@@ -524,9 +542,11 @@ export default function SchedulePage() {
         {/* ---------- EDITOR (auto, or a period being edited/created) ---------- */}
         {!loading && showEditor && (
           <>
-            {model === "period" && (
+            {bounded && (
               <div className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap gap-4 items-end">
-                <button onClick={() => { if (confirmDiscardIfDirty()) { setPeriodView("list"); setMsg(""); } }} className="text-sm text-court hover:underline">← חזרה לרשימת התקופות</button>
+                <button onClick={() => { if (confirmDiscardIfDirty()) { setPeriodView("list"); setMsg(""); } }} className="text-sm text-court hover:underline">
+                  {isSpecial ? "← חזרה לרשימת הימים המיוחדים" : "← חזרה לרשימת התקופות"}
+                </button>
                 <div>
                   <label className="block text-sm font-medium text-ink mb-1">מתאריך</label>
                   <input type="date" value={startDate} disabled={editingExisting || readOnly}
@@ -539,8 +559,9 @@ export default function SchedulePage() {
                     onChange={e => { setEndDate(e.target.value); setDirty(true); }}
                     className="border rounded-lg px-3 py-2 disabled:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-court" />
                 </div>
-                {editingExisting && <p className="text-xs text-muted">עריכת תקופה קיימת — ניתן לשנות את תאריך הסיום בלבד.</p>}
-                {readOnly && <p className="text-xs text-amber-700 font-semibold">תקופה שהסתיימה — צפייה בלבד.</p>}
+                <p className="text-xs text-muted">{isSpecial ? "יום מיוחד: 1 עד 6 ימים (פחות משבוע). גובר על התקופה." : "תקופה: לפחות 7 ימים (שבוע)."}</p>
+                {editingExisting && <p className="text-xs text-muted">עריכת {isSpecial ? "יום מיוחד" : "תקופה"} קיים/ת — ניתן לשנות את תאריך הסיום בלבד.</p>}
+                {readOnly && <p className="text-xs text-amber-700 font-semibold">{isSpecial ? "יום מיוחד שהסתיים" : "תקופה שהסתיימה"} — צפייה בלבד.</p>}
               </div>
             )}
 
