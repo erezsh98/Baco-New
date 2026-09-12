@@ -515,7 +515,7 @@ export default function SchedulePage() {
               </div>
             </div>
             {isSpecial && (
-              <p className="text-xs text-muted mb-3">ימים מיוחדים (עד 6 ימים) גוברים על התקופה בתאריכים שלהם. לסגירה מלאה השתמשו בימי חג / סגירה.</p>
+              <p className="text-xs text-muted mb-3">ימים מיוחדים (עד 6 ימים) גוברים על התקופה בתאריכים שלהם. לסגירה מלאה השתמשו ב"חסום ימים / שעות".</p>
             )}
             {activeList.length === 0 ? (
               <p className="text-muted text-sm">{isSpecial ? 'לא הוגדרו ימים מיוחדים למגרש זה. לחצו "ימים מיוחדים חדשים" כדי להתחיל.' : 'לא הוגדרו תקופות למגרש זה. לחצו "תקופה חדשה" כדי להתחיל.'}</p>

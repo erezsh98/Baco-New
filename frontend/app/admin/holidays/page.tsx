@@ -143,7 +143,7 @@ export default function HolidaysPage() {
     <main className="min-h-screen bg-canvas p-4">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-ink">חסימות / ימי חג{clubName ? ` — ${clubName}` : ""}</h1>
+          <h1 className="text-2xl font-bold text-ink">חסום ימים / שעות{clubName ? ` — ${clubName}` : ""}</h1>
           <Link href="/admin" className="text-sm text-court hover:underline">חזרה לניהול</Link>
         </div>
 
