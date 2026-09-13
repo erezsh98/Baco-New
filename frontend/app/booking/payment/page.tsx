@@ -13,6 +13,14 @@ type Slot = {
 
 type Ticket = { id: number; club_ticket_id: number; ticket_name: string; ticket_type?: string; unlimited: boolean; punches_left: number | null };
 
+// A 404 on booking means the chosen slot no longer exists — almost always
+// because the club's schedule was updated (rebuild) while it sat in the cart.
+// Show a clear "search again" message instead of the raw "slot not found".
+function bookingErrorText(e: any, fallback: string): string {
+  if (e?.response?.status === 404) return "לוח הזמנים עודכן והמגרש שנבחר כבר אינו זמין. אנא חזרו לחיפוש ובחרו מגרש מחדש.";
+  return e?.response?.data?.detail || fallback;
+}
+
 export default function PaymentPage() {
   const router = useRouter();
   const [slot, setSlot] = useState<Slot | null>(null);
@@ -98,7 +106,7 @@ export default function PaymentPage() {
         setError("שגיאה: לא התקבל מסך תשלום. נסו שוב או פנו לתמיכה.");
       }
     } catch (e: any) {
-      setError(e.response?.data?.detail || "שגיאה ביצירת הזמנה");
+      setError(bookingErrorText(e, "שגיאה ביצירת הזמנה"));
     } finally {
       setLoading(false);
     }
@@ -117,7 +125,7 @@ export default function PaymentPage() {
       localStorage.removeItem("selected_slot");
       router.push("/booking/thank-you");
     } catch (e: any) {
-      setError(e.response?.data?.detail || "שגיאה בשימוש בכרטיס");
+      setError(bookingErrorText(e, "שגיאה בשימוש בכרטיס"));
     } finally {
       setLoading(false);
     }
