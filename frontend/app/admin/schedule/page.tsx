@@ -100,11 +100,11 @@ export default function SchedulePage() {
   // generic text; the tailored Hebrew messages appear on in-app navigation.)
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (dirty || savedPendingExpose) { e.preventDefault(); e.returnValue = ""; }
+      if (dirty || savedPendingExpose || rebuilding) { e.preventDefault(); e.returnValue = ""; }
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty, savedPendingExpose]);
+  }, [dirty, savedPendingExpose, rebuilding]);
   useEffect(() => { if (court != null) loadCourt(court); /* eslint-disable-next-line */ }, [court]);
 
   async function loadCourts() {
@@ -429,6 +429,18 @@ export default function SchedulePage() {
 
   return (
     <main className="min-h-screen bg-canvas p-4">
+      {/* Blocking overlay while a rebuild is running — prevents navigating/searching
+          before it finishes (which would show pre-rebuild availability). Covers the
+          navbar too (z above it). */}
+      {rebuilding && (
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-center justify-center" role="alertdialog" aria-busy="true">
+          <div className="bg-white rounded-2xl shadow-xl px-8 py-6 text-center max-w-sm mx-4">
+            <div className="mx-auto mb-3 h-8 w-8 rounded-full border-4 border-court border-t-transparent animate-spin" />
+            <p className="font-semibold text-ink">מעדכן זמינות…</p>
+            <p className="text-sm text-muted mt-1">התהליך עשוי להימשך מספר שניות. נא להמתין ואין לצאת מהמסך.</p>
+          </div>
+        </div>
+      )}
       <div className="max-w-5xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-ink">עריכת לוח זמנים — {clubName}</h1>

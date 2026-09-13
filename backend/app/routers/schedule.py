@@ -25,10 +25,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_club_manager
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models.club import Club, ClubManager
 from app.models.court import AvailableCourtSlot, RentalTemplate
 from app.models.order import CourtOrder
+from app.models.user import User
 from app.services import audit
 from app.services.scheduler import rebuild
 
@@ -599,30 +600,43 @@ def rebuild_club(db: Session = Depends(get_db), manager: ClubManager = Depends(r
     club only. Regenerates free slots from the club's active templates and
     re-marks holidays, leaving every other club untouched. The daily 01:00 cron
     still rebuilds all clubs globally.
+
+    Runs on a DEDICATED session (not the request session): the whole operation is
+    a single unit that must finish and commit atomically even if the client
+    navigates away or reloads mid-rebuild — a disconnect closes the request
+    session (get_db) but must not roll back a half-finished rebuild.
     """
-    rebuild(db, club_id=manager.club_id)
-
-    # Housekeeping: drop deactivated templates that no longer have any slot
-    # referencing them. Templates still referenced by a booked slot are kept.
-    referenced = db.query(AvailableCourtSlot.rental_template_id).distinct()
-    db.query(RentalTemplate).filter(
-        RentalTemplate.club_id == manager.club_id,
-        RentalTemplate.is_active == "N",
-        RentalTemplate.id.notin_(referenced),
-    ).delete(synchronize_session=False)
-
-    free_slots = (
-        db.query(func.count(AvailableCourtSlot.id))
-        .join(RentalTemplate, AvailableCourtSlot.rental_template_id == RentalTemplate.id)
-        .filter(RentalTemplate.club_id == manager.club_id, AvailableCourtSlot.order_id.is_(None))
-        .scalar()
-    )
+    club_id = manager.club_id
     club_name = manager.club.club_name if manager.club else None
-    audit.record(
-        db, manager.user, "availability.rebuild",
-        f"עדכון זמינות למועדון — {free_slots} סלוטים פנויים",
-        club_id=manager.club_id, club_name=club_name,
-        detail={"free_slots": free_slots},
-    )
-    db.commit()
-    return {"message": "הזמינות עודכנה בהצלחה לפי השינויים האחרונים."}
+    user_id = manager.user_id
+
+    work = SessionLocal()
+    try:
+        rebuild(work, club_id=club_id)   # commits the availability on `work`
+
+        # Housekeeping: drop deactivated templates no longer referenced by any slot
+        # (templates still referenced by a booked slot are kept).
+        referenced = work.query(AvailableCourtSlot.rental_template_id).distinct()
+        work.query(RentalTemplate).filter(
+            RentalTemplate.club_id == club_id,
+            RentalTemplate.is_active == "N",
+            RentalTemplate.id.notin_(referenced),
+        ).delete(synchronize_session=False)
+
+        free_slots = (
+            work.query(func.count(AvailableCourtSlot.id))
+            .join(RentalTemplate, AvailableCourtSlot.rental_template_id == RentalTemplate.id)
+            .filter(RentalTemplate.club_id == club_id, AvailableCourtSlot.order_id.is_(None))
+            .scalar()
+        )
+        actor = work.query(User).filter(User.id == user_id).first()
+        audit.record(
+            work, actor, "availability.rebuild",
+            f"עדכון זמינות למועדון — {free_slots} סלוטים פנויים",
+            club_id=club_id, club_name=club_name,
+            detail={"free_slots": free_slots},
+        )
+        work.commit()
+        return {"message": "הזמינות עודכנה בהצלחה לפי השינויים האחרונים."}
+    finally:
+        work.close()
