@@ -13,19 +13,15 @@ type Order = {
   status: string; total_price: number; payment_method: string;
 };
 
-function isoDaysAgo(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().split("T")[0];
-}
+const todayIso = () => new Date().toISOString().split("T")[0];
 
 export default function AdminPage() {
   const router = useRouter();
   const clubName = useActiveClubName();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fromDate, setFromDate] = useState(isoDaysAgo(30));
-  const [toDate, setToDate] = useState(new Date().toISOString().split("T")[0]);
+  const [fromDate, setFromDate] = useState(todayIso());   // default range: today → today
+  const [toDate, setToDate] = useState(todayIso());
   const [cancelId, setCancelId] = useState<number | null>(null);
   const [error, setError] = useState("");
 
