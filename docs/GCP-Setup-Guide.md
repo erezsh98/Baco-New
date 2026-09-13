@@ -1,0 +1,83 @@
+# GCP Setup Guide (Console / GUI) — hosting BACO from a new account
+
+Everything below is done in the **Google Cloud Console** (https://console.cloud.google.com),
+via the GUI. Each step links to the official Google doc, which contains current
+screenshots (Google's console changes often, so the official pages are the
+reliable source for the exact visuals).
+
+This guide covers **GCP infrastructure only**. The app install (MySQL 8.4,
+Python/Node/nginx, systemd, certbot TLS) is in
+[`Native-VM-Runbook.md`](Native-VM-Runbook.md) and runs on the VM afterwards.
+
+All navigation starts at the top-left **☰ (Navigation menu)**.
+
+**Order that matters:** reserve IP → create VM (attach IP, open 80/443) → set the
+DNS A record to that IP → wait for DNS → then run the runbook (which does certbot TLS).
+
+---
+
+## Phase 0 — Billing & budget
+- Sign in and accept the Terms.
+- Add a billing account: **☰ → Billing → Manage billing accounts → Add billing account** (enter a card; new accounts usually get free trial credit).
+- Set a budget: **☰ → Billing → Budgets & alerts → Create budget** → amount (e.g. $60) + alert thresholds (50 / 90 / 100 %).
+- Docs (screenshots): https://cloud.google.com/billing/docs/how-to/budgets
+
+## Phase 1 — Project & Compute Engine API
+- Top bar **project dropdown → New Project** → name `baco-prod` → **Create**; select it in the top bar.
+- Confirm billing is linked: **☰ → Billing**.
+- Enable Compute Engine: **☰ → Compute Engine → VM instances** → first visit shows **Enable** (click, wait ~1 min).
+- Docs: https://cloud.google.com/resource-manager/docs/creating-managing-projects
+
+## Phase 2 — Reserve a static external IP
+- **☰ → VPC network → IP addresses → Reserve external static address**.
+- Name `baco-ip` · Type **Regional** · Region **me-west1 (Tel Aviv)** · **Reserve**. Note the IP.
+- Docs (screenshots): https://cloud.google.com/compute/docs/ip-addresses/reserve-static-external-ip-address
+
+## Phase 3 — Create the VM
+- **☰ → Compute Engine → VM instances → Create instance**:
+  - **Name** `baco-vm` · **Region** me-west1 · **Zone** me-west1-a.
+  - **Machine configuration**: series **E2**, type **e2-medium (2 vCPU, 4 GB)**.
+  - **Boot disk → Change**: **Debian 12** (or Ubuntu 24.04 LTS) · **Balanced persistent disk** · **30 GB** → **Select**.
+  - **Firewall**: tick **Allow HTTP traffic** and **Allow HTTPS traffic**.
+  - **Advanced → Networking → Network interfaces**: set **External IPv4 address** = **baco-ip**.
+  - Availability policy: leave **Standard** (not Spot).
+  - **Create**.
+- Connect: on the instance row click **SSH** (browser terminal).
+- Docs (screenshots): https://cloud.google.com/compute/docs/instances/create-start-instance · SSH: https://cloud.google.com/compute/docs/instances/ssh
+
+## Phase 4 — Firewall (optional SSH hardening)
+- **☰ → VPC network → Firewall** → open `default-allow-ssh` → restrict **Source IPv4 ranges** to your own IP (instead of `0.0.0.0/0`).
+- 80/443 were added by the VM's HTTP/HTTPS checkboxes. **Never** open 8000/3000/3306 — the app binds backend to `127.0.0.1:8000` and the frontend to `:3000` behind nginx.
+- Docs: https://cloud.google.com/firewall/docs/using-firewalls
+
+## Phase 5 — DNS (baco.co.il → the static IP)
+Pick one:
+- **At your registrar (simplest):** DNS settings → add an **A record**: host `@` (and `www`) → value = the static IP, TTL 300.
+- **Cloud DNS:** **☰ → Network services → Cloud DNS → Create zone** (Public) → **Add standard record set** → type **A**, IPv4 = static IP (do it for `@` and `www`) → then set your registrar's **nameservers** to the ones Cloud DNS lists.
+- Verify: `nslookup baco.co.il` → your static IP (needed before certbot TLS).
+- Docs (screenshots): https://cloud.google.com/dns/docs/set-up-dns-records-domain-name
+
+## Phase 6 — Backups & operations (GUI)
+- **Disk snapshot schedule** (this is your DB backup, since MySQL lives on the disk):
+  **☰ → Compute Engine → Snapshots → Snapshot schedules → Create** (daily, keep 7–14 days), then **Disks → baco-vm disk → Edit → Snapshot schedule** → attach it.
+  Docs (screenshots): https://cloud.google.com/compute/docs/disks/scheduled-snapshots
+- **Cloud Scheduler** (only if driving the jobs externally — see
+  [`Background-Jobs-Deployment.md`](Background-Jobs-Deployment.md)):
+  **☰ → Cloud Scheduler → Create job** (enable API if prompted) → HTTP, URL
+  `https://baco.co.il/jobs/rebuild`, header `X-Scheduler-Token`. Otherwise the
+  in-process scheduler on the single VM is fine.
+- **Uptime alert:** **☰ → Monitoring → Uptime checks → Create** for `https://baco.co.il`.
+- **Security:** enable 2-Step Verification on the Google account; keep SSH restricted; patch the OS (`apt upgrade`).
+
+---
+
+## Then: install the app
+With the VM up and **DNS resolving to it**, open the VM's **SSH** terminal and follow
+[`Native-VM-Runbook.md`](Native-VM-Runbook.md) — it installs MySQL 8.4, the app,
+the systemd services, nginx, and certbot (certbot needs **port 80 open + DNS
+pointing at the VM**, which Phases 2–5 provide).
+
+> Screenshots: this guide intentionally links to Google's official docs for each
+> step rather than embedding images, because the Cloud Console UI changes
+> frequently and the official pages stay current. If you get stuck on a specific
+> screen, capture it and it can be walked through click-by-click.
