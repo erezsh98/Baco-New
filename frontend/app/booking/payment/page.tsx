@@ -189,8 +189,8 @@ export default function PaymentPage() {
           </div>
         ) : slot.is_free ? (
           <div className="bg-white rounded-2xl shadow p-6 space-y-4 text-center">
-            <p className="text-court font-semibold">הזמנה זו ללא עלות (חבר מועדון) 🎾</p>
-            <button onClick={proceedCredit} disabled={loading}
+            <p className="text-court font-semibold">הזמנה זו ללא עלות{slot.is_member_price ? " (חבר מועדון)" : ""} 🎾</p>
+            <button onClick={() => proceedCredit()} disabled={loading}
               className="w-full bg-court text-white py-3 rounded-lg hover:bg-court-dark transition disabled:opacity-50 font-semibold">
               {loading ? "מעבד..." : "אישור הזמנה"}
             </button>
@@ -224,7 +224,7 @@ export default function PaymentPage() {
           )}
 
           <button
-            onClick={payMethod === "credit" ? proceedCredit : proceedTicket}
+            onClick={() => (payMethod === "credit" ? proceedCredit() : proceedTicket())}
             disabled={loading || (payMethod === "ticket" && !selectedTicket)}
             className="w-full bg-court text-white py-3 rounded-lg hover:bg-court-dark transition disabled:opacity-50 font-semibold">
             {loading ? "מעבד..." : "אישור הזמנה"}
