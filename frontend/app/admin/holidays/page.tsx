@@ -44,7 +44,7 @@ type FormState = {
 const EMPTY: FormState = { ids: null, block_type: "period", court_number: null, start_date: today(), start_hour: 8, end_date: today(), end_hour: 22 };
 const courtLabel = (c: number | null) => (c == null ? "כל המגרשים" : `מגרש ${c}`);
 
-type Conflict = { date: string; hour: number; court_number: number | null; order_id: number; customer: string };
+type Conflict = { date: string; hour: number; court_number: number | null; order_id: number; customer: string; phone: string };
 
 export default function HolidaysPage() {
   const router = useRouter();
@@ -310,6 +310,7 @@ export default function HolidaysPage() {
                     <th className="text-right px-3 py-2">שעה</th>
                     <th className="text-right px-3 py-2">מגרש</th>
                     <th className="text-right px-3 py-2">לקוח</th>
+                    <th className="text-right px-3 py-2">טלפון</th>
                     <th className="text-right px-3 py-2">הזמנה</th>
                   </tr>
                 </thead>
@@ -320,6 +321,7 @@ export default function HolidaysPage() {
                       <td className="px-3 py-2">{String(c.hour).padStart(2, "0")}:00</td>
                       <td className="px-3 py-2">{courtLabel(c.court_number)}</td>
                       <td className="px-3 py-2">{c.customer}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{c.phone || "—"}</td>
                       <td className="px-3 py-2">#{c.order_id}</td>
                     </tr>
                   ))}

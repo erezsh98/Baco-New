@@ -214,6 +214,7 @@ def _block_conflicts(db: Session, club_id: int, s: SpanIn) -> list[dict]:
                 "court_number": slot.rental_template.court_number,
                 "order_id": order.order_id,
                 "customer": f"{u.first_name} {u.last_name}" if u else "",
+                "phone": (u.phone_number or "") if u else "",
             })
     out.sort(key=lambda x: (x["date"], x["hour"]))
     return out
