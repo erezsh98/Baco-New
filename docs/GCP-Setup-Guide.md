@@ -57,6 +57,30 @@ Pick one:
 - Verify: `nslookup baco.co.il` → your static IP (needed before certbot TLS).
 - Docs (screenshots): https://cloud.google.com/dns/docs/set-up-dns-records-domain-name
 
+## Phase 5b — SSL / HTTPS (TLS)
+For this **single-VM** setup, HTTPS is provided by **certbot + Let's Encrypt on the
+VM's nginx** — free and auto-renewing. GCP is not the certificate authority here;
+it just supplies the prerequisites, which the earlier phases already set up:
+- **Port 443 open** — the "Allow HTTPS" checkbox on the VM (Phase 3).
+- **Port 80 open** — the "Allow HTTP" checkbox (Phase 3); certbot's HTTP-01
+  challenge needs it.
+- **DNS resolving** `baco.co.il` → the VM's static IP (Phase 5).
+
+The certificate is issued **on the VM** as part of the runbook's nginx step:
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d baco.co.il -d www.baco.co.il
+```
+Certbot adds the `:443` server block + an HTTP→HTTPS redirect, installs a 90-day
+cert, and sets up **auto-renewal** (a systemd timer). Check it with
+`sudo certbot renew --dry-run`.
+
+> **GCP-managed certificate** is a different path — it applies only if you put a
+> **GCP External HTTPS Load Balancer** in front of the VM (Google then provisions
+> and renews the cert and terminates TLS at the load balancer). That is extra
+> infrastructure and cost, and is **not needed** for the single-VM/certbot setup;
+> consider it only if you later add a load balancer.
+
 ## Phase 6 — Backups & operations (GUI)
 - **Disk snapshot schedule** (this is your DB backup, since MySQL lives on the disk):
   **☰ → Compute Engine → Snapshots → Snapshot schedules → Create** (daily, keep 7–14 days), then **Disks → baco-vm disk → Edit → Snapshot schedule** → attach it.
