@@ -104,26 +104,38 @@ def search_courts(
     if not sub_end:
         query = query.filter(RentalTemplate.for_member.is_(None))
 
-    # Advance-booking window (legacy AvailableCourtsSearchController): a slot is
-    # only offered if it is at least the club's lead time away from now. Base
-    # cutoff = now (hides past/current slots); when a specific club is chosen,
-    # push it out by rent_threshold_days / rental_threshold_hours.
+    # Base filter: never offer past/current slots (loosest cutoff = now). The
+    # per-club advance-booking lead time only tightens this, so fetching from now
+    # and then filtering per club below misses nothing.
     now = datetime.now()
-    cutoff_date = now.date()
-    cutoff_hour = now.hour
-    if club_id:
-        club = db.query(Club).filter(Club.id == club_id).first()
-        if club:
-            cutoff_date = now.date() + timedelta(days=club.rent_threshold_days or 0)
-            cutoff_hour = now.hour + (club.rental_threshold_hours or 0)
+    today = now.date()
     query = query.filter(
         or_(
-            AvailableCourtSlot.curdate > cutoff_date,
-            and_(AvailableCourtSlot.curdate == cutoff_date, AvailableCourtSlot.hour > cutoff_hour),
+            AvailableCourtSlot.curdate > today,
+            and_(AvailableCourtSlot.curdate == today, AvailableCourtSlot.hour > now.hour),
         )
     )
 
     slots = query.order_by(AvailableCourtSlot.curdate, AvailableCourtSlot.hour).all()
+
+    # Advance-booking window (legacy AvailableCourtsSearchController): a slot is
+    # only offered if it is at least its CLUB's lead time away from now
+    # (rent_threshold_days / rental_threshold_hours). Applied for EVERY search —
+    # all-clubs and single-club — so a club's near-term slots are hidden
+    # consistently (they used to show in an all-clubs search but not in that
+    # club's own search).
+    club_leads = {
+        cid: ((rtd or 0), (rth or 0))
+        for cid, rtd, rth in db.query(
+            Club.id, Club.rent_threshold_days, Club.rental_threshold_hours
+        ).all()
+    }
+
+    def _within_lead_time(s: AvailableCourtSlot) -> bool:
+        days, hours = club_leads.get(s.rental_template.club_id, (0, 0))
+        c_date = today + timedelta(days=days)
+        c_hour = now.hour + hours
+        return s.curdate > c_date or (s.curdate == c_date and s.hour > c_hour)
 
     def _covered(s: AvailableCourtSlot) -> bool:
         end = sub_end.get(s.rental_template.club_id)
@@ -131,6 +143,8 @@ def search_courts(
 
     result = []
     for s in slots:
+        if not _within_lead_time(s):
+            continue
         covered = _covered(s)
         # A subscriber-only (for_member) slot on a date the user's subscription
         # no longer covers must stay hidden.
