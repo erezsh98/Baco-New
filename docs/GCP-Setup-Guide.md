@@ -81,6 +81,36 @@ cert, and sets up **auto-renewal** (a systemd timer). Check it with
 > infrastructure and cost, and is **not needed** for the single-VM/certbot setup;
 > consider it only if you later add a load balancer.
 
+### Certificate during cutover (migrating from an existing live site)
+A TLS certificate belongs to the **domain**, not to a GCP project or server, so
+there's nothing to "move between projects" — the only question is how the new VM
+gets a valid cert for `baco.co.il` while the old site is still serving it.
+
+- **If the old cert is Let's Encrypt (free): create a fresh one** on the new VM —
+  don't copy it. Reissuing is trivial and keeps auto-renewal clean.
+- **If the old cert is a paid CA cert with real remaining validity:** you may
+  simply **copy its certificate chain + private key** to the new VM and point
+  nginx at them. The same cert is valid on any server for that domain, and this
+  works even before DNS is switched.
+
+The wrinkle: Let's Encrypt's default **HTTP-01** validation needs `baco.co.il` to
+already point at the machine requesting the cert — but during cutover it still
+points at the **old** site. For **zero downtime**, pick one:
+
+1. **DNS-01 challenge (recommended — issue before cutover).** Validates via a DNS
+   TXT record instead of HTTP, so the new VM can get the cert while the old site
+   is still live; then you just flip DNS and HTTPS is already ready:
+   ```bash
+   sudo certbot certonly --manual --preferred-challenges dns \
+     -d baco.co.il -d www.baco.co.il
+   ```
+   Add the TXT record it prints (automatable when DNS is Cloud DNS or another
+   supported provider).
+2. **Temp subdomain.** Point `new.baco.co.il` → the new VM, get a cert for that,
+   validate the site, then reissue for `baco.co.il` right after the DNS flip.
+3. **Issue after the flip.** Repoint DNS, then immediately run `certbot --nginx`
+   on the new VM — a few seconds of "no HTTPS yet" until it completes.
+
 ## Phase 6 — Backups & operations (GUI)
 - **Disk snapshot schedule** (this is your DB backup, since MySQL lives on the disk):
   **☰ → Compute Engine → Snapshots → Snapshot schedules → Create** (daily, keep 7–14 days), then **Disks → baco-vm disk → Edit → Snapshot schedule** → attach it.
