@@ -21,6 +21,11 @@
 -- ----------------------------------------------------------------------------
 -- 1) audit_log  (CREATE TABLE IF NOT EXISTS is natively idempotent)
 -- ----------------------------------------------------------------------------
+-- RESET (opt-in): uncomment the next line ONLY to rebuild a broken/empty
+-- audit_log — e.g. a prior run created it with the wrong user_id type before
+-- this fix. WARNING: this DELETES ALL audit history, so never uncomment it
+-- when re-running against a database whose audit_log holds real entries.
+-- DROP TABLE IF EXISTS `audit_log`;
 CREATE TABLE IF NOT EXISTS `audit_log` (
   `id`         INT           NOT NULL AUTO_INCREMENT,
   `created_at` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- app sets this; default is a safety net
