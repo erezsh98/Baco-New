@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -8,8 +8,8 @@ from app.models.types import Date  # DATE column tolerant of production's DATETI
 class ClubTicket(Base):
     __tablename__ = "club_ticket"
 
-    id = Column(Integer, primary_key=True)
-    club_id = Column(Integer, ForeignKey("club.id"))
+    id = Column(BigInteger, primary_key=True)
+    club_id = Column(BigInteger, ForeignKey("club.id"))
     ticket_cost = Column(Float)
     description = Column(String(500))
     end_date = Column(Date)
@@ -25,9 +25,9 @@ class ClubTicket(Base):
 class CustomerTicket(Base):
     __tablename__ = "customer_ticket"
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"))
-    club_ticket_id = Column(Integer, ForeignKey("club_ticket.id"))
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("user.id"))
+    club_ticket_id = Column(BigInteger, ForeignKey("club_ticket.id"))
     cur_num_of_punches = Column(Integer)
     end_date = Column(Date)
     approval_number = Column(String(255), nullable=True)
@@ -40,8 +40,8 @@ class CustomerTicket(Base):
 class TicketActiveTime(Base):
     __tablename__ = "ticket_active_time"
 
-    id = Column(Integer, primary_key=True)
-    club_ticket_id = Column(Integer, ForeignKey("club_ticket.id"))
+    id = Column(BigInteger, primary_key=True)
+    club_ticket_id = Column(BigInteger, ForeignKey("club_ticket.id"))
     day_of_week = Column(Integer)   # 1=Sunday, 7=Saturday
     start_hour = Column(Integer)
     end_hour = Column(Integer)
@@ -52,9 +52,9 @@ class TicketActiveTime(Base):
 class ClubCustomerPermittedTicket(Base):
     __tablename__ = "club_customer_permitted_ticket"
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=True)
-    club_id = Column(Integer, ForeignKey("club.id"))
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("user.id"), nullable=True)
+    club_id = Column(BigInteger, ForeignKey("club.id"))
     ticket_type = Column(String(255))
     end_date = Column(Date, nullable=True)
 

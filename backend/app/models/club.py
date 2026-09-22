@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -7,7 +7,7 @@ from app.database import Base
 class Area(Base):
     __tablename__ = "area"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     area_code = Column(String(255))
     description = Column(String(255))
 
@@ -17,7 +17,7 @@ class Area(Base):
 class Address(Base):
     __tablename__ = "address"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     street = Column(String(255))
     city = Column(String(255))
 
@@ -25,10 +25,10 @@ class Address(Base):
 class Club(Base):
     __tablename__ = "club"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(BigInteger, primary_key=True)
     club_name = Column(String(255))
-    area_id = Column(Integer, ForeignKey("area.id"))
-    address_id = Column(Integer, ForeignKey("address.id"))
+    area_id = Column(BigInteger, ForeignKey("area.id"))
+    address_id = Column(BigInteger, ForeignKey("address.id"))
     email = Column(String(255))
     num_of_courts = Column(Integer)
     contact_phone = Column(String(255))
@@ -60,9 +60,9 @@ class Club(Base):
 class ClubManager(Base):
     __tablename__ = "club_managers"
 
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("user.id"))
-    club_id = Column(Integer, ForeignKey("club.id"))
+    id = Column(BigInteger, primary_key=True)
+    user_id = Column(BigInteger, ForeignKey("user.id"))
+    club_id = Column(BigInteger, ForeignKey("club.id"))
 
     club = relationship("Club", back_populates="managers")
     user = relationship("User")
@@ -71,8 +71,8 @@ class ClubManager(Base):
 class FixedGatePhoneNumber(Base):
     __tablename__ = "fixed_gate_phone_numbers"
 
-    id = Column(Integer, primary_key=True)
-    club_id = Column(Integer, ForeignKey("club.id"))
+    id = Column(BigInteger, primary_key=True)
+    club_id = Column(BigInteger, ForeignKey("club.id"))
     phone_number = Column(String(255))
 
     club = relationship("Club")

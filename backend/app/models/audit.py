@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, Text
 
 from app.database import Base
 
@@ -13,11 +13,11 @@ class AuditLog(Base):
     """
     __tablename__ = "audit_log"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True)        # audit_log.id is INT in migration 001 (its own new table)
     created_at = Column(DateTime, nullable=False, default=datetime.now)  # server local time
-    user_id = Column(Integer, ForeignKey("user.id"), nullable=True)
+    user_id = Column(BigInteger, ForeignKey("user.id"), nullable=True)   # BigInteger to match user.id (BIGINT)
     user_name = Column(String(255), nullable=False, default="")
-    club_id = Column(Integer, nullable=True)      # null = global action (e.g. full rebuild)
+    club_id = Column(Integer, nullable=True)      # null = global action (e.g. full rebuild); no FK, denormalized
     club_name = Column(String(255), nullable=True)
     action = Column(String(64), nullable=False)   # stable code, e.g. "schedule.save"
     summary = Column(String(512), nullable=False, default="")  # human Hebrew one-liner

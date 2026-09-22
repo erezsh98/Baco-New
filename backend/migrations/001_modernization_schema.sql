@@ -24,7 +24,7 @@
 CREATE TABLE IF NOT EXISTS `audit_log` (
   `id`         INT           NOT NULL AUTO_INCREMENT,
   `created_at` DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- app sets this; default is a safety net
-  `user_id`    INT           NULL,
+  `user_id`    BIGINT        NULL,                                -- BIGINT to match user.id (FK below)
   `user_name`  VARCHAR(255)  NOT NULL DEFAULT '',                 -- denormalized "First Last <email>"
   `club_id`    INT           NULL,                                -- NULL = global action
   `club_name`  VARCHAR(255)  NULL,                                -- denormalized club name
