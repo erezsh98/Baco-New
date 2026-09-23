@@ -150,7 +150,7 @@ export default function SchedulePage() {
 
   // Build tiers + grid from a server cells array. Ensures at least one price tier.
   function loadGrid(cells: any[], price_mode: string, hour_from: number, hour_to: number) {
-    setPriceMode(price_mode || "same");
+    setPriceMode(price_mode === "different" ? "different" : "same");
     setHourFrom(hour_from ?? 6); setHourTo(hour_to ?? 23);
     const combos = new Map<string, Tier>();
     const g: Record<string, Cell> = {};
