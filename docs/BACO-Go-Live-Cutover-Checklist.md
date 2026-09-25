@@ -237,10 +237,21 @@ EMAIL_FROM=<from address on the verified domain>
 
 ENABLE_SCHEDULER=true          # in-process scheduler (you skipped Cloud Scheduler)
 ```
-Generate the JWT secret:
+**Generating `JWT_SECRET`** — this is the signing key for login tokens (a
+password-equivalent: anyone who has it can forge a token for any user, so keep it
+secret and never commit it). Generate a strong random value on the VM:
 ```bash
 openssl rand -hex 32
 ```
+Copy the 64-character output and paste it as the `JWT_SECRET` value in `.env`
+above. Notes:
+- **Set it once and keep it stable** in production. Changing it invalidates all
+  existing login tokens, so every user is logged out and must sign in again.
+- Use a **different** value from your dev/local `JWT_SECRET` (a leaked dev secret
+  then can't forge production tokens).
+- Only rotate it (generate a new one) if you suspect it leaked — accepting that
+  it force-logs-out everyone.
+
 ### 6b. `frontend/.env.production`
 ```bash
 cd /home/servicebaco/Baco-New/frontend
