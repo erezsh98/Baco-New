@@ -9,6 +9,7 @@ type Group = { id: number; name: string; ticket_type: string };
 type Permit = {
   id: number; user_id: number; user_name: string;
   email: string; phone: string; group: string; end_date: string | null;
+  held_ticket_end: string | null;   // customer_ticket end date (governs coverage)
 };
 
 export default function PermissionsPage() {
@@ -241,7 +242,8 @@ export default function PermissionsPage() {
                             <th className="text-right py-2 px-2">אימייל</th>
                             <th className="text-right py-2 px-2">טלפון</th>
                             <th className="text-right py-2 px-2">קבוצה</th>
-                            <th className="text-right py-2 px-2">בתוקף עד</th>
+                            <th className="text-right py-2 px-2">הרשאה בתוקף עד</th>
+                            <th className="text-right py-2 px-2">כרטיס בתוקף עד</th>
                             <th className="py-2 px-2"></th>
                           </tr>
                         </thead>
@@ -268,6 +270,16 @@ export default function PermissionsPage() {
                                     )}
                                   </span>
                                 )}
+                              </td>
+                              <td className="py-2 px-2 whitespace-nowrap">
+                                {p.held_ticket_end ? (
+                                  <span
+                                    className={p.held_ticket_end !== p.end_date ? "text-amber-600 font-semibold" : ""}
+                                    title={p.held_ticket_end !== p.end_date ? "תוקף הכרטיס בפועל שונה מתוקף ההרשאה" : undefined}
+                                  >
+                                    {p.held_ticket_end}
+                                  </span>
+                                ) : "—"}
                               </td>
                               <td className="py-2 px-2 text-left">
                                 <button onClick={() => removePermit(p.id)} className="text-red-600 hover:underline">הסר</button>

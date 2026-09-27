@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -303,6 +303,30 @@ def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = De
     permits = db.query(ClubCustomerPermittedTicket).filter(
         ClubCustomerPermittedTicket.club_id == club_id
     ).all()
+
+    # Held-ticket (customer_ticket) end date per (user, ticket_type) for this club.
+    # That customer_ticket — NOT the permission — is what actually governs booking
+    # coverage, and the two end_dates can drift apart. Surface it alongside the
+    # permission's own end_date so managers can see both and spot mismatches.
+    def _iso(v):
+        if v is None:
+            return None
+        return v.date().isoformat() if isinstance(v, datetime) else str(v)
+    held = {
+        (uid, (tt or "").strip()): _iso(mx)
+        for uid, tt, mx in (
+            db.query(
+                CustomerTicket.user_id,
+                func.trim(ClubTicket.ticket_type),
+                func.max(CustomerTicket.end_date),
+            )
+            .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
+            .filter(ClubTicket.club_id == club_id)
+            .group_by(CustomerTicket.user_id, func.trim(ClubTicket.ticket_type))
+            .all()
+        )
+    }
+
     result = []
     for p in permits:
         u = p.user
@@ -318,6 +342,9 @@ def get_club_users(club_id: int, db: Session = Depends(get_db), admin: User = De
             "group": (p.ticket_type or "").strip(),
             "ticket_type": p.ticket_type,
             "end_date": str(p.end_date) if p.end_date else None,
+            # Held customer_ticket end date for the same user + ticket_type (the row
+            # that governs coverage). null when the user holds no such ticket.
+            "held_ticket_end": held.get((u.id, (p.ticket_type or "").strip())),
         })
     # Sort by "בתוקף עד" (end_date) descending; rows with no end date (permanent)
     # go last. end_date is an ISO string, so lexicographic order == chronological.
