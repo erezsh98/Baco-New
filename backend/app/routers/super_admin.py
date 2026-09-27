@@ -11,13 +11,13 @@ All endpoints require ROLE_SUPER_ADMIN. No schema changes — reuses existing ta
 """
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_super_admin
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.models.club import Address, Area, Club, ClubManager
 from app.models.court import AvailableCourtSlot, RentalTemplate
 from app.models.order import CourtOrder  # noqa: F401 (relationship targets)
@@ -188,29 +188,16 @@ class RebuildIn(BaseModel):
     club_id: int | None = None   # null = all clubs
 
 
-@router.post("/rebuild")
-def super_rebuild(body: RebuildIn, db: Session = Depends(get_db), su: User = Depends(require_super_admin)):
-    """Regenerate bookable availability for a specific club, or all clubs (club_id null)."""
-    club = None
-    if body.club_id is not None:
-        club = db.query(Club).filter(Club.id == body.club_id).first()
-        if not club:
-            raise HTTPException(status_code=404, detail="מועדון לא נמצא")
-
-    # Run the rebuild on its OWN session (db omitted → rebuild() opens a
-    # SessionLocal and commits independently). A full all-clubs rebuild can run
-    # long; doing it on the request session meant a client/proxy disconnect
-    # (socket hang up / ECONNRESET) could abort it mid-way. On its own session
-    # the work commits regardless of whether the caller is still connected.
-    rebuild(club_id=body.club_id)
-
-    # housekeeping: drop deactivated templates no longer referenced by any slot
+def _finalize_rebuild(db: Session, club_id: int | None, su: User, club_name: str | None) -> int:
+    """Housekeeping + audit after a rebuild(); returns the free-slot count.
+    Shared by the synchronous single-club path and the background all-clubs task."""
+    # drop deactivated templates no longer referenced by any slot
     referenced = db.query(AvailableCourtSlot.rental_template_id).distinct()
     hk = db.query(RentalTemplate).filter(
         RentalTemplate.is_active == "N", RentalTemplate.id.notin_(referenced)
     )
-    if body.club_id is not None:
-        hk = hk.filter(RentalTemplate.club_id == body.club_id)
+    if club_id is not None:
+        hk = hk.filter(RentalTemplate.club_id == club_id)
     hk.delete(synchronize_session=False)
 
     free_q = (
@@ -218,16 +205,56 @@ def super_rebuild(body: RebuildIn, db: Session = Depends(get_db), su: User = Dep
         .join(RentalTemplate, AvailableCourtSlot.rental_template_id == RentalTemplate.id)
         .filter(AvailableCourtSlot.order_id.is_(None))
     )
-    if body.club_id is not None:
-        free_q = free_q.filter(RentalTemplate.club_id == body.club_id)
+    if club_id is not None:
+        free_q = free_q.filter(RentalTemplate.club_id == club_id)
     free = free_q.scalar()
 
-    scope = club.club_name if club else "כל המועדונים"
+    scope = club_name or "כל המועדונים"
     audit.record(db, su, "availability.rebuild", f"עדכון זמינות ({scope}) — {free} סלוטים פנויים",
-                 club_id=body.club_id, club_name=club.club_name if club else None,
+                 club_id=club_id, club_name=club_name,
                  detail={"scope": scope, "free_slots": free})
     db.commit()
-    return {"message": f"הזמינות עודכנה עבור {scope} — {free} סלוטים פנויים."}
+    return free
+
+
+def _rebuild_all_background(su_id: int) -> None:
+    """Full all-clubs rebuild + finalize, on a fresh session, run in the BACKGROUND.
+    A full rebuild takes tens of seconds (and grows with data), long enough that
+    making the HTTP caller wait caused socket hang up / ECONNRESET. This runs to
+    completion regardless of the caller; progress is in `journalctl -u baco-backend`
+    (rebuild START/DONE)."""
+    rebuild(club_id=None)  # rebuild() opens its own session and commits
+    db = SessionLocal()
+    try:
+        su = db.query(User).filter(User.id == su_id).first()
+        _finalize_rebuild(db, None, su, None)
+    finally:
+        db.close()
+
+
+@router.post("/rebuild")
+def super_rebuild(body: RebuildIn, background_tasks: BackgroundTasks,
+                  db: Session = Depends(get_db), su: User = Depends(require_super_admin)):
+    """Regenerate bookable availability.
+
+    • A single club (club_id set) is fast → run synchronously and return the
+      free-slot count.
+    • ALL clubs (club_id null) is long → run in the BACKGROUND and return
+      immediately, so the browser/proxy never waits on it (which was causing
+      socket hang up / ECONNRESET). The work + audit finish on their own session;
+      watch `journalctl -u baco-backend` for the rebuild START/DONE lines.
+    """
+    if body.club_id is None:
+        background_tasks.add_task(_rebuild_all_background, su.id)
+        return {"message": "עדכון הזמינות לכל המועדונים החל ורץ ברקע — בדרך כלל מסתיים תוך כדקה. יש לרענן את המסך לאחר מכן."}
+
+    club = db.query(Club).filter(Club.id == body.club_id).first()
+    if not club:
+        raise HTTPException(status_code=404, detail="מועדון לא נמצא")
+
+    rebuild(club_id=body.club_id)  # own session; fast for a single club
+    free = _finalize_rebuild(db, body.club_id, su, club.club_name)
+    return {"message": f"הזמינות עודכנה עבור {club.club_name} — {free} סלוטים פנויים."}
 
 
 # ---------------------------------------------------------------------------
