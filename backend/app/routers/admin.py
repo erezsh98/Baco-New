@@ -1,3 +1,4 @@
+import calendar
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -531,13 +532,13 @@ def update_permission(permit_id: int, body: UpdatePermitBody, db: Session = Depe
     old_end = p.end_date
     p.end_date = body.end_date
 
-    # A מנוי membership's coverage comes from its CustomerTicket, created with the
-    # same end_date. Move that ticket to the new date too (match by the old date so
-    # we touch only the ticket paired with this membership).
+    # A מנוי membership's coverage comes from its CustomerTicket. Align ALL of this
+    # user's מנוי tickets for the club to the new date — deliberately NOT filtering
+    # by the old date, so this also reconciles a ticket that had already drifted out
+    # of sync with the permission (which is the whole point of editing here).
     synced = 0
     if (p.ticket_type or "").strip() == SUBSCRIPTION_TYPE:
-        from app.models.ticket import ClubTicket, CustomerTicket
-        q = (
+        subs = (
             db.query(CustomerTicket)
             .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
             .filter(
@@ -545,10 +546,9 @@ def update_permission(permit_id: int, body: UpdatePermitBody, db: Session = Depe
                 ClubTicket.club_id == p.club_id,
                 func.trim(ClubTicket.ticket_type) == SUBSCRIPTION_TYPE,
             )
+            .all()
         )
-        if old_end is not None:
-            q = q.filter(CustomerTicket.end_date == old_end)
-        for ct in q.all():
+        for ct in subs:
             ct.end_date = body.end_date
             synced += 1
 
@@ -565,6 +565,122 @@ def update_permission(permit_id: int, body: UpdatePermitBody, db: Session = Depe
     )
     db.commit()
     return {"message": "התאריך עודכן", "end_date": str(body.end_date)}
+
+
+def _add_months(d: date, months: int) -> date:
+    """Add whole months to a date, clamping the day to the target month's length
+    (e.g. Jan 31 + 1 month → Feb 28/29)."""
+    m = d.month - 1 + months
+    y = d.year + m // 12
+    m = m % 12 + 1
+    return date(y, m, min(d.day, calendar.monthrange(y, m)[1]))
+
+
+class BulkExtendBody(BaseModel):
+    ticket_type: str                    # the group to extend
+    mode: str = "extend"                # "extend" (add a period) | "set" (absolute date)
+    months: int | None = None          # required for mode="extend" (12 = one year)
+    new_end_date: date | None = None   # required for mode="set"
+    anchor: str = "existing"           # extend base: "existing" (current end) | "today" (max(today, end))
+    dry_run: bool = True               # True → preview only (no writes)
+
+
+@router.post("/clubs/{club_id}/permissions/bulk-extend")
+def bulk_extend_permissions(club_id: int, body: BulkExtendBody,
+                            db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    """Bulk-extend (or set) the end date of every permission of one group in a club.
+
+    Preview with dry_run=True (returns affected count + a sample of old→new); apply
+    with dry_run=False. For a מנוי group the paired CustomerTicket end dates are
+    moved in lockstep (that's what governs coverage); other groups touch only the
+    permission. Permissions with no end date (permanent) are left untouched.
+    """
+    _require_manages(db, admin.id, club_id)
+    tt = (body.ticket_type or "").strip()
+    if not tt:
+        raise HTTPException(status_code=400, detail="חסרה קבוצה")
+    if body.mode == "set":
+        if not body.new_end_date:
+            raise HTTPException(status_code=400, detail="חסר תאריך יעד")
+    elif body.mode == "extend":
+        if not body.months or body.months <= 0:
+            raise HTTPException(status_code=400, detail="חסרה תקופה להארכה")
+    else:
+        raise HTTPException(status_code=400, detail="mode לא תקין")
+
+    permits = db.query(ClubCustomerPermittedTicket).filter(
+        ClubCustomerPermittedTicket.club_id == club_id,
+        func.trim(ClubCustomerPermittedTicket.ticket_type) == tt,
+    ).all()
+
+    today = date.today()
+    changes = []               # (permit, old_end, new_end)
+    skipped_permanent = 0
+    for p in permits:
+        cur = p.end_date
+        if cur is None:
+            skipped_permanent += 1          # permanent membership — leave as-is
+            continue
+        if isinstance(cur, datetime):
+            cur = cur.date()
+        if body.mode == "set":
+            new_end = body.new_end_date
+        else:
+            base = cur if body.anchor == "existing" else max(cur, today)
+            new_end = _add_months(base, body.months)
+        changes.append((p, cur, new_end))
+
+    is_sub = tt == SUBSCRIPTION_TYPE
+
+    if body.dry_run:
+        sample = []
+        for p, cur, new_end in changes[:100]:
+            u = p.user
+            sample.append({
+                "user_name": f"{u.first_name} {u.last_name}" if u else f"#{p.user_id}",
+                "email": u.username if u else "",
+                "old_end": str(cur),
+                "new_end": str(new_end),
+            })
+        return {"affected": len(changes), "skipped_permanent": skipped_permanent,
+                "is_subscription": is_sub, "sample": sample}
+
+    synced = 0
+    for p, cur, new_end in changes:
+        p.end_date = new_end
+        if is_sub:
+            subs = (
+                db.query(CustomerTicket)
+                .join(ClubTicket, CustomerTicket.club_ticket_id == ClubTicket.id)
+                .filter(
+                    CustomerTicket.user_id == p.user_id,
+                    ClubTicket.club_id == club_id,
+                    func.trim(ClubTicket.ticket_type) == SUBSCRIPTION_TYPE,
+                )
+                .all()
+            )
+            for ct in subs:
+                ct.end_date = new_end
+                synced += 1
+
+    club = db.query(Club).filter(Club.id == club_id).first()
+    audit.record(
+        db, admin, "permission.bulk_extend",
+        f"הארכת הרשאות '{tt}' — {len(changes)} משתמשים",
+        club_id=club_id, club_name=(club.club_name if club else None),
+        detail={"ticket_type": tt, "mode": body.mode, "months": body.months,
+                "new_end_date": str(body.new_end_date) if body.new_end_date else None,
+                "anchor": body.anchor, "affected": len(changes),
+                "synced_subscriptions": synced, "skipped_permanent": skipped_permanent},
+    )
+    db.commit()
+    msg = f"עודכנו {len(changes)} הרשאות"
+    if is_sub:
+        msg += f" ו-{synced} מנויים"
+    if skipped_permanent:
+        msg += f" ({skipped_permanent} ללא תאריך דולגו)"
+    return {"message": msg, "affected": len(changes),
+            "synced_subscriptions": synced, "skipped_permanent": skipped_permanent}
 
 
 @router.post("/rebuild")

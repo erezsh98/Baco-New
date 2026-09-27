@@ -29,12 +29,20 @@ export default function PermissionsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [view, setView] = useState<"add" | "report">("add");
+  const [view, setView] = useState<"add" | "report" | "extend">("add");
   const [filterUser, setFilterUser] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [editPermitId, setEditPermitId] = useState<number | null>(null);
   const [editDate, setEditDate] = useState("");
   const todayStr = new Date().toISOString().split("T")[0];
+
+  // Bulk-extend (הארכת הרשאות)
+  type ExtSample = { user_name: string; email: string; old_end: string; new_end: string };
+  type ExtPreview = { affected: number; skipped_permanent: number; is_subscription: boolean; sample: ExtSample[] };
+  const [extForm, setExtForm] = useState({ ticket_type: "", mode: "extend", months: "12", anchor: "existing", new_end_date: "" });
+  const [extPreview, setExtPreview] = useState<ExtPreview | null>(null);
+  const [extMsg, setExtMsg] = useState("");
+  const [extBusy, setExtBusy] = useState(false);
 
   useEffect(() => {
     // Only clubs this manager manages (was /clubs = all clubs). Default to the
@@ -75,6 +83,9 @@ export default function PermissionsPage() {
     return () => { active = false; clearTimeout(t); };
   }, [form.email_or_phone]);
 
+  // Any change to the bulk-extend form invalidates a previously shown preview.
+  useEffect(() => { setExtPreview(null); }, [extForm]);
+
   async function addUser(e: React.FormEvent) {
     e.preventDefault();
     setError(""); setSuccess("");
@@ -105,8 +116,6 @@ export default function PermissionsPage() {
     }
   }
 
-  // A row is active (editable) when it has no end date or it hasn't passed yet.
-  const isActive = (p: Permit) => !p.end_date || p.end_date >= todayStr;
   function startEditDate(p: Permit) { setEditPermitId(p.id); setEditDate(p.end_date || todayStr); setError(""); }
   async function saveEndDate(p: Permit) {
     if (!editDate) return;
@@ -117,6 +126,33 @@ export default function PermissionsPage() {
     } catch (e: any) {
       setError(e.response?.data?.detail || "עדכון התאריך נכשל");
     }
+  }
+
+  // Build the bulk-extend request body from the form.
+  function extBody(dry: boolean) {
+    const b: any = { ticket_type: extForm.ticket_type, mode: extForm.mode, dry_run: dry };
+    if (extForm.mode === "extend") { b.months = Number(extForm.months); b.anchor = extForm.anchor; }
+    else { b.new_end_date = extForm.new_end_date; }
+    return b;
+  }
+  async function previewExtend() {
+    if (!selectedClub || !extForm.ticket_type) { setExtMsg("יש לבחור קבוצה"); return; }
+    setExtBusy(true); setExtMsg("");
+    try {
+      const r = await api.post(`/admin/clubs/${selectedClub}/permissions/bulk-extend`, extBody(true));
+      setExtPreview(r.data);
+    } catch (e: any) { setExtMsg(e.response?.data?.detail || "שגיאה בתצוגה מקדימה"); setExtPreview(null); }
+    finally { setExtBusy(false); }
+  }
+  async function applyExtend() {
+    if (!selectedClub || !extPreview) return;
+    if (!window.confirm(`לעדכן ${extPreview.affected} הרשאות${extPreview.is_subscription ? " (כולל המנויים המשויכים)" : ""}?`)) return;
+    setExtBusy(true); setExtMsg("");
+    try {
+      const r = await api.post(`/admin/clubs/${selectedClub}/permissions/bulk-extend`, extBody(false));
+      setExtMsg(r.data.message || "בוצע"); setExtPreview(null); loadPermits();
+    } catch (e: any) { setExtMsg(e.response?.data?.detail || "שגיאה בעדכון"); }
+    finally { setExtBusy(false); }
   }
 
   return (
@@ -140,6 +176,10 @@ export default function PermissionsPage() {
               <button onClick={() => { setView("report"); setError(""); }}
                 className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition ${view === "report" ? "border-court bg-mint text-court-dark" : "border-line text-muted hover:bg-mint"}`}>
                 דוח הרשאות
+              </button>
+              <button onClick={() => { setView("extend"); setError(""); setExtMsg(""); }}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition ${view === "extend" ? "border-court bg-mint text-court-dark" : "border-line text-muted hover:bg-mint"}`}>
+                הארכת הרשאות
               </button>
             </div>
 
@@ -265,21 +305,21 @@ export default function PermissionsPage() {
                                 ) : (
                                   <span className="flex items-center gap-2">
                                     {p.end_date || "—"}
-                                    {isActive(p) && (
-                                      <button onClick={() => startEditDate(p)} className="text-court hover:underline text-xs">ערוך</button>
-                                    )}
+                                    <button onClick={() => startEditDate(p)} className="text-court hover:underline text-xs">ערוך</button>
                                   </span>
                                 )}
                               </td>
                               <td className="py-2 px-2 whitespace-nowrap">
-                                {p.held_ticket_end ? (
-                                  <span
-                                    className={p.held_ticket_end !== p.end_date ? "text-amber-600 font-semibold" : ""}
-                                    title={p.held_ticket_end !== p.end_date ? "תוקף הכרטיס בפועל שונה מתוקף ההרשאה" : undefined}
-                                  >
-                                    {p.held_ticket_end}
-                                  </span>
-                                ) : "—"}
+                                {p.group === "מנוי" ? (
+                                  p.held_ticket_end ? (
+                                    <span
+                                      className={p.held_ticket_end !== p.end_date ? "text-amber-600 font-semibold" : ""}
+                                      title={p.held_ticket_end !== p.end_date ? "תוקף הכרטיס בפועל שונה מתוקף ההרשאה" : undefined}
+                                    >
+                                      {p.held_ticket_end}
+                                    </span>
+                                  ) : "—"
+                                ) : ""}
                               </td>
                               <td className="py-2 px-2 text-left">
                                 <button onClick={() => removePermit(p.id)} className="text-red-600 hover:underline">הסר</button>
@@ -294,6 +334,126 @@ export default function PermissionsPage() {
                 </div>
               );
             })()}
+
+            {view === "extend" && (
+              <div className="bg-white rounded-xl shadow p-4">
+                <h2 className="font-semibold text-ink mb-1">הארכת הרשאות</h2>
+                <p className="text-sm text-muted mb-4">
+                  הארכה או קביעת תאריך סיום לכל חברי הקבוצה בבת אחת. עבור קבוצת "מנוי" יעודכן גם תוקף הכרטיס (הכיסוי בפועל); בשאר הקבוצות רק ההרשאה.
+                </p>
+                <div className="space-y-3 max-w-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-ink mb-1">קבוצה</label>
+                    <select value={extForm.ticket_type}
+                      onChange={e => setExtForm({ ...extForm, ticket_type: e.target.value })}
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court">
+                      <option value="">בחר קבוצה...</option>
+                      {groups.map(g => <option key={g.id} value={g.ticket_type}>{g.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-ink mb-1">פעולה</label>
+                    <div className="flex gap-4 text-sm">
+                      <label className="flex items-center gap-1">
+                        <input type="radio" name="extmode" checked={extForm.mode === "extend"}
+                          onChange={() => setExtForm({ ...extForm, mode: "extend" })} />
+                        הארך בתקופה
+                      </label>
+                      <label className="flex items-center gap-1">
+                        <input type="radio" name="extmode" checked={extForm.mode === "set"}
+                          onChange={() => setExtForm({ ...extForm, mode: "set" })} />
+                        קבע תאריך סיום
+                      </label>
+                    </div>
+                  </div>
+
+                  {extForm.mode === "extend" ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-ink mb-1">הארך ב־ (חודשים)</label>
+                        <input type="number" min={1} value={extForm.months}
+                          onChange={e => setExtForm({ ...extForm, months: e.target.value })}
+                          className="w-32 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+                        <span className="text-xs text-muted ms-2">12 = שנה</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-ink mb-1">נקודת התחלה</label>
+                        <div className="flex flex-col gap-1 text-sm">
+                          <label className="flex items-center gap-1">
+                            <input type="radio" name="extanchor" checked={extForm.anchor === "existing"}
+                              onChange={() => setExtForm({ ...extForm, anchor: "existing" })} />
+                            מתאריך הסיום הנוכחי של כל הרשאה
+                          </label>
+                          <label className="flex items-center gap-1">
+                            <input type="radio" name="extanchor" checked={extForm.anchor === "today"}
+                              onChange={() => setExtForm({ ...extForm, anchor: "today" })} />
+                            מהמאוחר מבין היום לתאריך הנוכחי (מומלץ להרשאות שכבר פגו)
+                          </label>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-ink mb-1">תאריך סיום חדש</label>
+                      <input type="date" value={extForm.new_end_date}
+                        onChange={e => setExtForm({ ...extForm, new_end_date: e.target.value })}
+                        className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 items-center">
+                    <button onClick={previewExtend} disabled={extBusy || !extForm.ticket_type}
+                      className="border border-court text-court px-5 py-2 rounded-lg font-semibold hover:bg-mint disabled:opacity-40">
+                      {extBusy ? "טוען..." : "תצוגה מקדימה"}
+                    </button>
+                    {extPreview && (
+                      <button onClick={applyExtend} disabled={extBusy || extPreview.affected === 0}
+                        className="bg-court text-white px-6 py-2 rounded-lg hover:bg-court-dark disabled:opacity-40">
+                        בצע ({extPreview.affected})
+                      </button>
+                    )}
+                  </div>
+
+                  {extMsg && <p className="text-sm text-court">{extMsg}</p>}
+
+                  {extPreview && (
+                    <div className="mt-2">
+                      <p className="text-sm text-ink mb-2">
+                        {extPreview.affected} הרשאות יעודכנו
+                        {extPreview.is_subscription ? " (כולל הכרטיסים/מנויים המשויכים)" : ""}.
+                        {extPreview.skipped_permanent > 0 && ` ${extPreview.skipped_permanent} הרשאות ללא תאריך יידלגו.`}
+                      </p>
+                      {extPreview.sample.length > 0 && (
+                        <div className="overflow-x-auto border rounded-lg">
+                          <table className="w-full text-sm">
+                            <thead className="text-muted border-b">
+                              <tr>
+                                <th className="text-right py-2 px-2">משתמש</th>
+                                <th className="text-right py-2 px-2">מתאריך</th>
+                                <th className="text-right py-2 px-2">לתאריך</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {extPreview.sample.map((s, i) => (
+                                <tr key={i} className="border-b last:border-0">
+                                  <td className="py-1.5 px-2 whitespace-nowrap">{s.user_name}</td>
+                                  <td className="py-1.5 px-2 whitespace-nowrap">{s.old_end}</td>
+                                  <td className="py-1.5 px-2 whitespace-nowrap text-court font-semibold">{s.new_end}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {extPreview.affected > extPreview.sample.length && (
+                            <p className="text-xs text-muted p-2">מוצגות {extPreview.sample.length} מתוך {extPreview.affected}.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
