@@ -598,7 +598,7 @@ def rebuild_club(db: Session = Depends(get_db), manager: ClubManager = Depends(r
     """
     Apply saved schedule changes to bookable availability — for THIS manager's
     club only. Regenerates free slots from the club's active templates and
-    re-marks holidays, leaving every other club untouched. The daily 01:00 cron
+    re-marks holidays, leaving every other club untouched. The daily 23:00 cron
     still rebuilds all clubs globally.
 
     Runs on a DEDICATED session (not the request session): the whole operation is

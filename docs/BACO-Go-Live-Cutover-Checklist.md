@@ -361,7 +361,7 @@ Open `https://baco.co.il` in a browser — padlock present, no cert warning.
 ```bash
 sudo journalctl -u baco-backend | grep -i scheduler | tail
 ```
-The nightly `rebuild` fires at **01:00 Asia/Jerusalem**; `release_orders` every
+The nightly `rebuild` fires at **23:00 Asia/Jerusalem**; `release_orders` every
 10 min. **The VM must now stay ON 24/7** — stop the daily 17:00 shutdown, or the
 site is down and the rebuild never fires.
 

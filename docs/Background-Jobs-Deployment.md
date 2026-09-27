@@ -4,7 +4,7 @@ BACO has two recurring background jobs:
 
 | Job | What it does | Cadence |
 |-----|--------------|---------|
-| `rebuild` | Rebuilds bookable availability for **all** clubs (delete + recreate free slots, apply holidays). | daily, ~01:00 |
+| `rebuild` | Rebuilds bookable availability for **all** clubs (delete + recreate free slots, apply holidays). | daily, ~23:00 |
 | `release_uncompleted_orders` | Frees court slots stuck in a cart for >10 minutes without payment. | every 10 minutes |
 
 There are **two ways** to run them. Pick one — do **not** run both, or each job fires twice.
@@ -69,9 +69,9 @@ header `X-Scheduler-Token: <the same secret>`.
 Console: Cloud Scheduler → **Create job** for each, or via `gcloud`:
 
 ```bash
-# Nightly availability rebuild — 01:00 every day
+# Nightly availability rebuild — 23:00 every day
 gcloud scheduler jobs create http baco-rebuild \
-  --schedule="0 1 * * *" \
+  --schedule="0 23 * * *" \
   --time-zone="Asia/Jerusalem" \
   --uri="https://baco.co.il/jobs/rebuild" \
   --http-method=POST \

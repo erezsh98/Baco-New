@@ -8,7 +8,7 @@ If no token is configured the endpoints fail closed (503), so they can never
 run unauthenticated by accident.
 
 Wire in Cloud Scheduler:
-  • POST https://baco.co.il/jobs/rebuild            — daily (mirrors the 01:00 cron)
+  • POST https://baco.co.il/jobs/rebuild            — daily (mirrors the 23:00 cron)
   • POST https://baco.co.il/jobs/release-orders     — every 10 minutes
   with header  X-Scheduler-Token: <SCHEDULER_TOKEN>
 

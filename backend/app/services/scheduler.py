@@ -228,7 +228,7 @@ scheduler = BackgroundScheduler(timezone="Asia/Jerusalem")
 
 
 def start_scheduler() -> None:
-    scheduler.add_job(rebuild, "cron", hour=1, minute=0, id="rebuild")
+    scheduler.add_job(rebuild, "cron", hour=23, minute=0, id="rebuild")
     scheduler.add_job(release_uncompleted_orders, "interval", minutes=10, id="release_orders")
     scheduler.start()
 
