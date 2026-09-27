@@ -198,6 +198,42 @@ sudo mysql play_tennis -e "
 If `user_role` is 0 or `users_cart` is missing → the backslash fix didn't run;
 re-do B2's merge/fix and re-import.
 
+### B4-alt. 🖥️ Replacing an EXISTING `play_tennis` DB (re-import over a previous one)
+If the VM already has a `play_tennis` (e.g. from testing) and you're loading a
+fresher dump over it, do a clean drop-and-reload with the backend stopped:
+```bash
+# 1. stop the backend so nothing writes mid-swap
+sudo systemctl stop baco-backend
+
+# 2. back up the current DB first (safety net)
+sudo mysqldump --single-transaction --default-character-set=utf8mb4 play_tennis \
+  > ~/play_tennis_backup_$(date +%F_%H%M).sql
+
+# 3. drop + recreate an empty DB
+sudo mysql -e "DROP DATABASE play_tennis; CREATE DATABASE play_tennis \
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# 4. import the new dump (apply the backslash-fix / DEFINER-strip first if Toad)
+sudo mysql --default-character-set=utf8mb4 play_tennis < ~/baco_prod_dump.sql
+
+# 5. migrations + data adjustments again (edit @admin_email in the .sql first)
+for f in ~/Baco-New/backend/migrations/0*.sql; do sudo mysql play_tennis < "$f"; done
+sudo mysql play_tennis < ~/Baco-New/docs/prod-data-adjustments.sql
+
+# 6. re-assert the app user's grant (safe to re-run), then start the backend
+sudo mysql -e "GRANT SELECT, INSERT, UPDATE, DELETE ON play_tennis.* \
+  TO 'baco_app'@'127.0.0.1'; FLUSH PRIVILEGES;"
+sudo systemctl start baco-backend
+```
+Then re-run the B4 verification block above.
+
+Notes:
+- The `baco_app` / `baco_admin` MySQL users **survive `DROP DATABASE`** (users are
+  server-global), and the `GRANT ... ON play_tennis.*` is keyed by schema name so
+  it usually persists too — step 6 just guarantees it.
+- Keep the most recent `~/play_tennis_backup_*.sql` until you're confident the new
+  import is good; then clean up old backups.
+
 ## B5. 🖥️ Create the app DB user (least privilege — don't run as root)
 ```bash
 sudo mysql <<'SQL'
