@@ -1,3 +1,5 @@
+import logging
+import time
 from datetime import date, datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -6,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.court import AvailableCourtSlot, RentalTemplate, HolidayDate, HolidayOverwrite
 from app.models.order import CourtOrder, UsersCart
+
+logger = logging.getLogger(__name__)
 
 NUM_DAYS_AHEAD = 30  # default slot-generation window when a club has no slot_window_days set
 SPECIAL_MAX_DAYS = 6  # יום מיוחד spans 1-6 days (< a week) and overrides the period on its dates
@@ -30,6 +34,11 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
     close = db is None
     if db is None:
         db = SessionLocal()
+    scope = f"club {club_id}" if club_id is not None else "ALL clubs"
+    started = time.monotonic()
+    added = 0
+    added_by_club: dict[int, int] = {}
+    logger.info("rebuild START (%s)", scope)
     try:
         # Clean slate: drop every slot not tied to an order (free slots AND
         # abandoned-cart slots), keeping only slots with a real order. Matches
@@ -131,6 +140,8 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
                             hour=hour,
                             curdate=target_date,
                         ))
+                        added += 1
+                        added_by_club[tmpl.club_id] = added_by_club.get(tmpl.club_id, 0) + 1
 
         # Flush the freshly-added slots so the bulk holiday UPDATEs below can see
         # them. The session is autoflush=False, so without this the marking would
@@ -171,6 +182,20 @@ def rebuild(db: Session | None = None, club_id: int | None = None) -> None:
             ).update({"is_holiday": None}, synchronize_session=False)
 
         db.commit()
+        elapsed = time.monotonic() - started
+        logger.info(
+            "rebuild DONE (%s): %d slots added across %d club(s), %d templates, "
+            "%d holiday rule(s), in %.1fs",
+            scope, added, len(added_by_club), len(templates), len(holidays), elapsed,
+        )
+        if added_by_club:
+            per_club = ", ".join(f"{cid}:{n}" for cid, n in sorted(added_by_club.items()))
+            logger.info("rebuild per-club slot counts (%s) — %s", scope, per_club)
+    except Exception:
+        # Log the full traceback (it wasn't visible before) and leave the DB clean.
+        logger.exception("rebuild FAILED (%s) after %.1fs", scope, time.monotonic() - started)
+        db.rollback()
+        raise
     finally:
         if close:
             db.close()

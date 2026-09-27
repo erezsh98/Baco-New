@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,6 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import auth, bookings, clubs, contact, courts, payment, tickets, users, admin, schedule, holidays, audit, super_admin, jobs
 from app.services.scheduler import start_scheduler, stop_scheduler
+
+# Emit INFO-level app logs (e.g. the availability rebuild progress) to stderr so
+# they show up in `journalctl -u baco-backend`. Without this the root logger stays
+# at WARNING and INFO lines are dropped.
+logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager

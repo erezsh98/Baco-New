@@ -197,7 +197,12 @@ def super_rebuild(body: RebuildIn, db: Session = Depends(get_db), su: User = Dep
         if not club:
             raise HTTPException(status_code=404, detail="מועדון לא נמצא")
 
-    rebuild(db, club_id=body.club_id)
+    # Run the rebuild on its OWN session (db omitted → rebuild() opens a
+    # SessionLocal and commits independently). A full all-clubs rebuild can run
+    # long; doing it on the request session meant a client/proxy disconnect
+    # (socket hang up / ECONNRESET) could abort it mid-way. On its own session
+    # the work commits regardless of whether the caller is still connected.
+    rebuild(club_id=body.club_id)
 
     # housekeeping: drop deactivated templates no longer referenced by any slot
     referenced = db.query(AvailableCourtSlot.rental_template_id).distinct()
