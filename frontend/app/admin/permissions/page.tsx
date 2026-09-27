@@ -38,8 +38,8 @@ export default function PermissionsPage() {
 
   // Bulk-extend (הארכת הרשאות)
   type ExtSample = { user_name: string; email: string; old_end: string; new_end: string };
-  type ExtPreview = { affected: number; skipped_permanent: number; is_subscription: boolean; sample: ExtSample[] };
-  const [extForm, setExtForm] = useState({ ticket_type: "", mode: "extend", months: "12", anchor: "existing", new_end_date: "" });
+  type ExtPreview = { affected: number; is_subscription: boolean; sample: ExtSample[] };
+  const [extForm, setExtForm] = useState({ ticket_type: "", from_date: "", to_date: "" });
   const [extPreview, setExtPreview] = useState<ExtPreview | null>(null);
   const [extMsg, setExtMsg] = useState("");
   const [extBusy, setExtBusy] = useState(false);
@@ -130,13 +130,11 @@ export default function PermissionsPage() {
 
   // Build the bulk-extend request body from the form.
   function extBody(dry: boolean) {
-    const b: any = { ticket_type: extForm.ticket_type, mode: extForm.mode, dry_run: dry };
-    if (extForm.mode === "extend") { b.months = Number(extForm.months); b.anchor = extForm.anchor; }
-    else { b.new_end_date = extForm.new_end_date; }
-    return b;
+    return { ticket_type: extForm.ticket_type, from_date: extForm.from_date, to_date: extForm.to_date, dry_run: dry };
   }
   async function previewExtend() {
     if (!selectedClub || !extForm.ticket_type) { setExtMsg("יש לבחור קבוצה"); return; }
+    if (!extForm.from_date || !extForm.to_date) { setExtMsg("יש לבחור תאריך התחלה ותאריך סיום חדש"); return; }
     setExtBusy(true); setExtMsg("");
     try {
       const r = await api.post(`/admin/clubs/${selectedClub}/permissions/bulk-extend`, extBody(true));
@@ -353,54 +351,19 @@ export default function PermissionsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-ink mb-1">פעולה</label>
-                    <div className="flex gap-4 text-sm">
-                      <label className="flex items-center gap-1">
-                        <input type="radio" name="extmode" checked={extForm.mode === "extend"}
-                          onChange={() => setExtForm({ ...extForm, mode: "extend" })} />
-                        הארך בתקופה
-                      </label>
-                      <label className="flex items-center gap-1">
-                        <input type="radio" name="extmode" checked={extForm.mode === "set"}
-                          onChange={() => setExtForm({ ...extForm, mode: "set" })} />
-                        קבע תאריך סיום
-                      </label>
-                    </div>
+                    <label className="block text-sm font-medium text-ink mb-1">עדכן הרשאות שתוקפן מסתיים עד לתאריך</label>
+                    <input type="date" value={extForm.from_date}
+                      onChange={e => setExtForm({ ...extForm, from_date: e.target.value })}
+                      className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+                    <p className="text-xs text-muted mt-1">כל ההרשאות בקבוצה שתאריך הסיום שלהן חל עד (וכולל) תאריך זה ייכללו.</p>
                   </div>
 
-                  {extForm.mode === "extend" ? (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-ink mb-1">הארך ב־ (חודשים)</label>
-                        <input type="number" min={1} value={extForm.months}
-                          onChange={e => setExtForm({ ...extForm, months: e.target.value })}
-                          className="w-32 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-                        <span className="text-xs text-muted ms-2">12 = שנה</span>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-ink mb-1">נקודת התחלה</label>
-                        <div className="flex flex-col gap-1 text-sm">
-                          <label className="flex items-center gap-1">
-                            <input type="radio" name="extanchor" checked={extForm.anchor === "existing"}
-                              onChange={() => setExtForm({ ...extForm, anchor: "existing" })} />
-                            מתאריך הסיום הנוכחי של כל הרשאה
-                          </label>
-                          <label className="flex items-center gap-1">
-                            <input type="radio" name="extanchor" checked={extForm.anchor === "today"}
-                              onChange={() => setExtForm({ ...extForm, anchor: "today" })} />
-                            מהמאוחר מבין היום לתאריך הנוכחי (מומלץ להרשאות שכבר פגו)
-                          </label>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div>
-                      <label className="block text-sm font-medium text-ink mb-1">תאריך סיום חדש</label>
-                      <input type="date" value={extForm.new_end_date}
-                        onChange={e => setExtForm({ ...extForm, new_end_date: e.target.value })}
-                        className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-ink mb-1">תאריך סיום חדש</label>
+                    <input type="date" value={extForm.to_date}
+                      onChange={e => setExtForm({ ...extForm, to_date: e.target.value })}
+                      className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
+                  </div>
 
                   <div className="flex gap-2 items-center">
                     <button onClick={previewExtend} disabled={extBusy || !extForm.ticket_type}
@@ -422,7 +385,6 @@ export default function PermissionsPage() {
                       <p className="text-sm text-ink mb-2">
                         {extPreview.affected} הרשאות יעודכנו
                         {extPreview.is_subscription ? " (כולל הכרטיסים/מנויים המשויכים)" : ""}.
-                        {extPreview.skipped_permanent > 0 && ` ${extPreview.skipped_permanent} הרשאות ללא תאריך יידלגו.`}
                       </p>
                       {extPreview.sample.length > 0 && (
                         <div className="overflow-x-auto border rounded-lg">
