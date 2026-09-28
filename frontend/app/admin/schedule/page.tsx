@@ -546,7 +546,10 @@ export default function SchedulePage() {
                         <td className="py-2"><span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${STATUS_CLS[p.status]}`}>{STATUS_LABEL[p.status]}</span></td>
                         <td className="py-2 text-left">
                           <button onClick={() => editPeriod(p)} className="text-court hover:underline ml-3">{p.editable ? "ערוך" : "צפייה"}</button>
-                          <button onClick={() => askDeletePeriod(p)} className="text-red-600 hover:underline">מחק</button>
+                          {/* A currently-active period can't be deleted (users are booking against it). */}
+                          {p.status !== "active" && (
+                            <button onClick={() => askDeletePeriod(p)} className="text-red-600 hover:underline">מחק</button>
+                          )}
                         </td>
                       </tr>
                     ))}

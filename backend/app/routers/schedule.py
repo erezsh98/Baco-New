@@ -533,6 +533,15 @@ def delete_period(body: PeriodRef, db: Session = Depends(get_db), manager: ClubM
     if not templates:
         raise HTTPException(status_code=404, detail="התקופה לא נמצאה")
 
+    # Never delete a period that is currently in effect (start <= today <= end):
+    # it's the availability users are booking against right now. Only future or
+    # already-ended periods may be removed.
+    if _period_status(body.start_date, body.end_date, today) == "active":
+        raise HTTPException(
+            status_code=400,
+            detail="לא ניתן למחוק תקופה פעילה (החלה על היום). ניתן למחוק רק תקופה עתידית או שהסתיימה.",
+        )
+
     old_cells = _open_cells(templates)
     conflicts = _future_booking_conflicts(
         db, manager.club_id, body.court_number, old_cells, max(today, body.start_date), body.end_date
