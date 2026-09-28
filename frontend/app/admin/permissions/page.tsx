@@ -351,11 +351,11 @@ export default function PermissionsPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-ink mb-1">עדכן הרשאות שתוקפן מסתיים עד לתאריך</label>
+                    <label className="block text-sm font-medium text-ink mb-1">עדכן הרשאות שתוקפן מסתיים בתאריך</label>
                     <input type="date" value={extForm.from_date}
                       onChange={e => setExtForm({ ...extForm, from_date: e.target.value })}
                       className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
-                    <p className="text-xs text-muted mt-1">כל ההרשאות בקבוצה שתאריך הסיום שלהן חל עד (וכולל) תאריך זה ייכללו.</p>
+                    <p className="text-xs text-muted mt-1">רק הרשאות בקבוצה שתאריך הסיום שלהן חל בדיוק בתאריך זה ייכללו.</p>
                   </div>
 
                   <div>

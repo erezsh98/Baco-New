@@ -578,24 +578,25 @@ def bulk_extend_permissions(club_id: int, body: BulkExtendBody,
                             db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     """Bulk-update the end date of permissions in one group of a club.
 
-    Selection: every permission of `ticket_type` whose current end_date is on or
-    before `from_date` (permanent/no-end rows are never selected). Action: set each
-    selected permission's end_date to `to_date`. Preview with dry_run=True (returns
-    affected count + a sample of old→new). For a מנוי group the paired CustomerTicket
-    end dates move in lockstep (coverage); other groups touch only the permission.
+    Selection: every permission of `ticket_type` whose current end_date falls
+    exactly ON `from_date` (not older ones). Action: set each selected permission's
+    end_date to `to_date`. Preview with dry_run=True (returns affected count + a
+    sample of old→new). For a מנוי group the paired CustomerTicket end dates move in
+    lockstep (coverage); other groups touch only the permission.
     """
     _require_manages(db, admin.id, club_id)
     tt = (body.ticket_type or "").strip()
     if not tt:
         raise HTTPException(status_code=400, detail="חסרה קבוצה")
 
-    # end_date < from_date + 1 day → inclusive of the whole from_date, tolerant of
-    # DATETIME storage (prod) vs DATE (dev).
+    # Match permissions whose end_date is ON from_date exactly. Prod stores DATETIME,
+    # so match the whole calendar day: [from_date, from_date + 1 day).
+    lower = body.from_date
     upper = body.from_date + timedelta(days=1)
     permits = db.query(ClubCustomerPermittedTicket).filter(
         ClubCustomerPermittedTicket.club_id == club_id,
         func.trim(ClubCustomerPermittedTicket.ticket_type) == tt,
-        ClubCustomerPermittedTicket.end_date.isnot(None),
+        ClubCustomerPermittedTicket.end_date >= lower,
         ClubCustomerPermittedTicket.end_date < upper,
     ).all()
 
