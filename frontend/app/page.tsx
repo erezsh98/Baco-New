@@ -1,5 +1,6 @@
 import Link from "next/link";
 import SearchForm from "@/components/SearchForm";
+import MigrationBanner from "@/components/MigrationBanner";
 
 const features = [
   { icon: "⚡", title: "הזמנה מהירה", text: "בחירת מגרש, שעה ותשלום בכמה קליקים, בלי טלפונים." },
@@ -18,6 +19,7 @@ const steps = [
 export default function Home() {
   return (
     <main>
+      <MigrationBanner />
       {/* HERO — court search */}
       <section className="relative overflow-hidden">
         {/* Court photo, clearly visible but softened toward the page so the card still reads. */}
