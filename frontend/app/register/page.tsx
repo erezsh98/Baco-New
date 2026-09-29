@@ -128,6 +128,15 @@ function RegisterForm() {
               >
                 לתנאי התקנון
               </a>
+              {" "}ו
+              <a
+                href="/privacy.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-court underline hover:text-court-dark"
+              >
+                למדיניות הפרטיות
+              </a>
             </span>
           </label>
 
