@@ -1,5 +1,5 @@
 "use client";
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -14,6 +14,15 @@ function LoginForm() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Prefill the email with the last one used on this device (convenience only —
+  // the password is never stored). Done on mount to avoid a hydration mismatch.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("last_login_email");
+      if (saved) setForm(f => ({ ...f, username: saved }));
+    } catch { /* storage blocked */ }
+  }, []);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -30,6 +39,8 @@ function LoginForm() {
         { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
       localStorage.setItem("access_token", res.data.access_token);
+      // Remember the email (only) for next time on this device.
+      try { localStorage.setItem("last_login_email", form.username); } catch { /* storage blocked */ }
       // Replace (not push) so the login page is removed from history: after login
       // the browser Back — and the payment page's "חזור לחיפוש" (router.back) —
       // returns to the previous page (e.g. the search results), not the login screen.
@@ -65,10 +76,12 @@ function LoginForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-ink mb-1">אימייל</label>
+          <label htmlFor="username" className="block text-sm font-medium text-ink mb-1">אימייל</label>
           <input
+            id="username"
             name="username"
             type="email"
+            autoComplete="username"
             required
             value={form.username}
             onChange={handleChange}
@@ -76,10 +89,12 @@ function LoginForm() {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-ink mb-1">סיסמה</label>
+          <label htmlFor="password" className="block text-sm font-medium text-ink mb-1">סיסמה</label>
           <input
+            id="password"
             name="password"
             type="password"
+            autoComplete="current-password"
             required
             value={form.password}
             onChange={handleChange}
