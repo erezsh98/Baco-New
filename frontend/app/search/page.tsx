@@ -87,6 +87,13 @@ export default function SearchPage() {
     router.push("/booking/payment");
   }
 
+  // Shared price cell/label, used by both the mobile cards and the desktop table.
+  function priceNode(s: Slot) {
+    if (s.covered_by_subscription) return <span className="font-bold text-court">כלול במנוי</span>;
+    if (s.is_free) return <span className="font-bold text-court">חינם</span>;
+    return <>₪{s.price}{s.is_member_price && <span className="mr-1 text-xs text-court">מחיר חבר</span>}</>;
+  }
+
   const totalPages = Math.max(1, Math.ceil(slots.length / RESULTS_PER_PAGE));
   const curPage = Math.min(page, totalPages - 1);
   const pageSlots = slots.slice(curPage * RESULTS_PER_PAGE, curPage * RESULTS_PER_PAGE + RESULTS_PER_PAGE);
@@ -111,7 +118,33 @@ export default function SearchPage() {
 
         {slots.length > 0 && (
           <div className="bg-white rounded-2xl shadow overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* MOBILE (<sm): one card per result, so the "הזמן" button is always
+                visible without horizontal scrolling. */}
+            <ul className="divide-y divide-line sm:hidden">
+              {pageSlots.map((s) => (
+                <li key={s.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-bold text-ink">{s.club_name}</p>
+                      <p className="mt-0.5 text-sm text-muted">
+                        מגרש {s.court_number}{s.surface_type ? ` · ${s.surface_type}` : ""}
+                      </p>
+                      <p className="mt-0.5 text-sm text-ink">
+                        {s.date} · {s.hour}:{String(s.minutes_offset).padStart(2, "0")}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-left text-base font-bold">{priceNode(s)}</div>
+                  </div>
+                  <button onClick={() => book(s)}
+                    className="mt-3 w-full rounded-lg bg-court py-2 font-semibold text-white hover:bg-court-dark">
+                    הזמן
+                  </button>
+                </li>
+              ))}
+            </ul>
+
+            {/* DESKTOP (sm+): the table. */}
+            <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-court text-white">
                 <tr>
@@ -132,15 +165,7 @@ export default function SearchPage() {
                     <td className="px-4 py-3">{s.hour}:{String(s.minutes_offset).padStart(2, "0")}</td>
                     <td className="px-4 py-3">מגרש {s.court_number}</td>
                     <td className="px-4 py-3">{s.surface_type || "—"}</td>
-                    <td className="px-4 py-3">
-                      {s.covered_by_subscription ? (
-                        <span className="font-bold text-court">כלול במנוי</span>
-                      ) : s.is_free ? (
-                        <span className="font-bold text-court">חינם</span>
-                      ) : (
-                        <>₪{s.price}{s.is_member_price && <span className="mr-1 text-xs text-court">מחיר חבר</span>}</>
-                      )}
-                    </td>
+                    <td className="px-4 py-3">{priceNode(s)}</td>
                     <td className="px-4 py-3">
                       <button onClick={() => book(s)}
                         className="bg-court text-white px-4 py-1 rounded-lg hover:bg-court-dark text-xs">
