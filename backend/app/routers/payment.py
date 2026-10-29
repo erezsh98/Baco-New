@@ -116,6 +116,11 @@ async def pelecard_success(request: Request, db: Session = Depends(get_db)):
     order.token = token
     db.commit()
 
+    # Mint the TTLock gate PIN (if the club has a lock) before the email, so the
+    # confirmation carries the code. No-op for clubs without TTLock; never raises.
+    from app.services.ttlock import ensure_gate_code
+    ensure_gate_code(order, db)
+
     from app.services.email import send_booking_confirmation_cc
     send_booking_confirmation_cc(order)
     # TODO: gate/manager SMS once the SMS subsystem is wired

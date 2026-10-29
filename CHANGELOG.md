@@ -6,8 +6,16 @@ features bump MINOR, bug fixes bump PATCH, breaking changes bump MAJOR.
 
 ## [Unreleased]
 ### Added
-- **TTLock integration** — in progress on branch `feature/ttlock-integration`
-  (targets release **v1.1.0**).
+- **TTLock integration** (branch `feature/ttlock-integration`, targets **v1.1.0**).
+  Clubs with a TTLock smart gate get a per-booking **offline keypad PIN**, minted
+  from the TTLock cloud at booking finalization and valid for the slot's hour
+  (works offline — no gateway/internet at the court). The PIN appears in the
+  confirmation email and on the user's web reservation (`/my-bookings`).
+  - Per-club config is **env-only** (`TTLOCK_<CLUBID>_*`); clubs without it are
+    unaffected. New service `app/services/ttlock.py`; migration **005** adds the
+    nullable `court_order.gate_code` column (the only schema change).
+  - No revoke on cancel (an offline PIN can't be revoked without a gateway).
+    Requires NTP on the server (TTLock rejects clock skew > 5 min).
 
 ## [1.0.0] — 2026-10-03 — Production launch
 First production release, live on GCP at **https://baco.co.il**. Baseline of

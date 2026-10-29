@@ -7,6 +7,7 @@ type Booking = {
   id: number; club_name: string; court_number: number;
   date: string; hour: number; minutes_offset: number;
   amount: number | null; cancel_until: string | null;
+  gate_code: string | null;
 };
 
 function fmtDateTime(iso: string): string {
@@ -77,6 +78,12 @@ export default function MyBookingsPage() {
                 <p className="font-semibold text-ink">{b.club_name} — מגרש {b.court_number}</p>
                 <p className="text-sm text-muted">{b.date} | שעה {String(b.hour).padStart(2, "0")}:{String(b.minutes_offset ?? 0).padStart(2, "0")}</p>
                 <p className="text-sm text-court font-medium">₪{b.amount}</p>
+                {b.gate_code && (
+                  <div className="mt-2 inline-flex items-center gap-2 bg-mint border border-court/30 rounded-lg px-3 py-1.5">
+                    <span className="text-xs text-muted">קוד שער</span>
+                    <span className="text-lg font-bold tracking-widest text-court-dark">{b.gate_code}</span>
+                  </div>
+                )}
               </div>
               {(() => {
                 const passed = !!b.cancel_until && new Date(b.cancel_until).getTime() < Date.now();

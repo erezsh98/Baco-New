@@ -110,6 +110,16 @@ def _booking_body(order, paid_by: str) -> str:
             f"<p align='right'> בזמן ההגעה למגרש, הכניסה והיציאה דרך השער תתאפשר ע''י חיוג מהטלפון שלך שמספרו "
             f"{user.phone_number} למספר {club.gate_phone}</p><br>"
         )
+    # TTLock: a gate PIN was minted for this booking (clubs with a smart lock only).
+    gate_code = getattr(order, "gate_code", None)
+    if gate_code:
+        from app.services.ttlock import gate_code_validity_text
+        validity = gate_code_validity_text(order)
+        html += (
+            f"<p align='right'>קוד כניסה לשער: <b style='font-size:1.3em'>{gate_code}</b></p>"
+            + _p(f"יש להקיש את הקוד על מקלדת המנעול בשער. הקוד בתוקף {validity}.".rstrip(" ."))
+            + "<br>"
+        )
     html += CONTACT_LINK
     html += _p(".לעזרה או שאלות בנוגע לרכישה, ניתן לפנות לעמוד שאלות נפוצות באתר") + "<br>"
     html += _p(f"בכל בעיה ניתן לפנות למנהל המועדון {club.contact_name} בטלפון {club.contact_phone} או במייל {club.email}") + "<br>"

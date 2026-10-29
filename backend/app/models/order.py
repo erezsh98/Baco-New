@@ -18,6 +18,7 @@ class CourtOrder(Base):
     customer_ticket_id = Column(BigInteger, ForeignKey("customer_ticket.id"), nullable=True)
     token = Column(String(255), nullable=True)       # Pelecard token
     description = Column(String(500), nullable=True)
+    gate_code = Column(String(16), nullable=True)    # TTLock offline keypad PIN (migration 005); NULL = no TTLock
 
     user = relationship("User", back_populates="orders")
     slot = relationship("AvailableCourtSlot", back_populates="order", uselist=False)

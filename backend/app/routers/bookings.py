@@ -111,6 +111,7 @@ class BookingOut(BaseModel):
     is_final: str | None
     refund_eligible: bool = False
     cancel_until: datetime | None = None   # latest time to cancel (club policy); null = anytime
+    gate_code: str | None = None           # TTLock gate PIN (clubs with a smart lock only)
 
     class Config:
         from_attributes = True
@@ -163,9 +164,15 @@ def create_booking(req: CreateBookingRequest, db: Session = Depends(get_db), cur
     )
 
 
-def _booking_out(order: CourtOrder) -> BookingOut:
+def _booking_out(order: CourtOrder, db: Session | None = None) -> BookingOut:
     slot = order.slot
     template = slot.rental_template if slot else None
+    # Show the TTLock gate PIN. If it's missing (e.g. TTLock was down at booking
+    # time) and this is still a future booking, try once more to mint it now.
+    gate_code = order.gate_code
+    if db is not None and not gate_code and not _booking_started(order):
+        from app.services.ttlock import ensure_gate_code
+        gate_code = ensure_gate_code(order, db)
     return BookingOut(
         id=order.id,
         order_id=order.order_id,
@@ -180,6 +187,7 @@ def _booking_out(order: CourtOrder) -> BookingOut:
         is_final=order.is_final,
         refund_eligible=_refund_eligible(order),
         cancel_until=_cancel_deadline(order),
+        gate_code=gate_code,
     )
 
 
@@ -190,7 +198,7 @@ def list_future_bookings(db: Session = Depends(get_db), current_user: User = Dep
         .filter(CourtOrder.user_id == current_user.id, CourtOrder.is_final == "Y")
         .all()
     )
-    return [_booking_out(o) for o in orders if o.slot and not _booking_started(o)]
+    return [_booking_out(o, db) for o in orders if o.slot and not _booking_started(o)]
 
 
 @router.get("/past", response_model=list[BookingOut])
@@ -207,7 +215,7 @@ def list_past_bookings(db: Session = Depends(get_db), current_user: User = Depen
 def list_my_bookings(future: bool = True, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     orders = db.query(CourtOrder).filter(CourtOrder.user_id == current_user.id, CourtOrder.is_final == "Y").all()
     filtered = [o for o in orders if o.slot and (not _booking_started(o) if future else _booking_started(o))]
-    return [_booking_out(o) for o in filtered]
+    return [_booking_out(o, db) for o in filtered]
 
 
 class RefundRequestBody(BaseModel):
@@ -317,6 +325,7 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
     db.refresh(order)
 
     from app.services.email import send_booking_confirmation_cc, send_booking_confirmation_ticket
+    from app.services.ttlock import ensure_gate_code
 
     if req.payment_method == "credit":
         club = template.club
@@ -324,6 +333,7 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
         if amount == 0 or settings.dev_mode or not club or not club.u_name:
             order.is_final = "Y"
             db.commit()
+            ensure_gate_code(order, db)                   # TTLock gate PIN (no-op without a lock)
             send_booking_confirmation_cc(order)          # paid by credit card (or free)
             return {"order_id": order.id, "confirmed": True, "message": "Booking confirmed"}
         from app.services.payment import build_pelecard_iframe
@@ -331,6 +341,7 @@ def create_booking_v2(req: CreateBookingRequest2, db: Session = Depends(get_db),
         return {"order_id": order.id, "iframe_html": iframe_html}
 
     # paid with a ticket — already final; send the confirmation
+    ensure_gate_code(order, db)                           # TTLock gate PIN (no-op without a lock)
     send_booking_confirmation_ticket(order)
     return {"order_id": order.id, "confirmed": True, "message": "Booking confirmed"}
 
