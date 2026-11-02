@@ -88,6 +88,7 @@ class ClubIn(BaseModel):
 
 
 def _club_out(db: Session, c: Club) -> dict:
+    from app.services.ttlock import has_ttlock
     area = db.query(Area).filter(Area.id == c.area_id).first() if c.area_id else None
     addr = db.query(Address).filter(Address.id == c.address_id).first() if c.address_id else None
     return {
@@ -103,6 +104,7 @@ def _club_out(db: Session, c: Club) -> dict:
         "u_name": c.u_name,
         "is_active": c.is_active or "Y",
         "street": addr.street if addr else None, "city": addr.city if addr else None,
+        "has_ttlock": has_ttlock(c),   # club has a smart gate (env-only); drives the "current code" button
     }
 
 
@@ -179,6 +181,25 @@ def set_club_active(club_id: int, body: ActiveIn, db: Session = Depends(get_db),
     audit.record(db, su, "club.active", f"מועדון {state}: {c.club_name}", club_id=c.id, club_name=c.club_name)
     db.commit()
     return _club_out(db, c)
+
+
+@router.post("/clubs/{club_id}/gate-code")
+def generate_club_gate_code(club_id: int, db: Session = Depends(get_db), su: User = Depends(require_super_admin)):
+    """Mint a gate PIN valid for the current hour window, for a club with a TTLock
+    smart gate. Returns {'code','from','to'}. NB: a real, non-revocable lock code."""
+    c = db.query(Club).filter(Club.id == club_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="מועדון לא נמצא")
+    from app.services.ttlock import has_ttlock, generate_current_pin
+    if not has_ttlock(c):
+        raise HTTPException(status_code=400, detail="למועדון זה אין מנעול חכם")
+    res = generate_current_pin(c)
+    if not res:
+        raise HTTPException(status_code=502, detail="יצירת הקוד נכשלה. בדוק את חיבור המנעול והשעון")
+    audit.record(db, su, "club.gate_code",
+                 f"נוצר קוד שער נוכחי למועדון: {c.club_name}", club_id=c.id, club_name=c.club_name)
+    db.commit()
+    return res
 
 
 # ---------------------------------------------------------------------------

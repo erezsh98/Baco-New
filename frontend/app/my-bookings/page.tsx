@@ -81,7 +81,7 @@ export default function MyBookingsPage() {
                 {b.gate_code && (
                   <div className="mt-2 inline-flex items-center gap-2 bg-mint border border-court/30 rounded-lg px-3 py-1.5">
                     <span className="text-xs text-muted">קוד שער</span>
-                    <span className="text-lg font-bold tracking-widest text-court-dark">{b.gate_code}</span>
+                    <span dir="ltr" className="text-lg font-bold tracking-widest text-court-dark">{b.gate_code}#</span>
                   </div>
                 )}
               </div>

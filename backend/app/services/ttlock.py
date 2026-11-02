@@ -332,3 +332,34 @@ def ensure_gate_code(order, db) -> str | None:
         except Exception:
             pass
         return None
+
+
+def has_ttlock(club) -> bool:
+    """True if the club has a TTLock smart gate configured (env-only). Never raises."""
+    try:
+        return ttlock_config(club) is not None
+    except Exception:
+        return False
+
+
+def generate_current_pin(club) -> dict | None:
+    """Mint an offline PIN valid for the current hour window — the super-admin
+    "current code" button. Covers the current whole hour plus the next, so the code
+    works immediately even near the top of the hour. Returns
+    {'code', 'from', 'to'} (Hebrew HH:MM), or None if the club has no TTLock config
+    or minting fails. Never raises. NB: this is a real, non-revocable lock code."""
+    try:
+        cfg = ttlock_config(club)
+        if not cfg:
+            return None
+        now_ms = int(datetime.now(CLUB_TZ).timestamp() * 1000)
+        start = _floor_hour_ms(now_ms)
+        end = start + 2 * _HOUR_MS
+        code = _client_for(cfg).get_offline_pin(start, end, f"BACO now club {getattr(club, 'id', '?')}")
+        s = datetime.fromtimestamp(start / 1000, CLUB_TZ)
+        e = datetime.fromtimestamp(end / 1000, CLUB_TZ)
+        logger.info("TTLock: minted CURRENT pin for club %s (lock %s)", getattr(club, "id", "?"), cfg["lock_id"])
+        return {"code": code, "from": f"{s:%H:%M}", "to": f"{e:%H:%M}"}
+    except Exception as exc:
+        logger.error("TTLock: generate_current_pin failed for club %s: %s", getattr(club, "id", "?"), exc)
+        return None

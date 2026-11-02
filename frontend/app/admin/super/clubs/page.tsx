@@ -11,6 +11,7 @@ type Club = {
   min_hour_for_cancel: number | null; rent_threshold_days: number | null; rental_threshold_hours: number | null;
   admin_start_hour: number | null; slot_window_days: number | null; u_name: string | null;
   street: string | null; city: string | null; is_active: string;
+  has_ttlock: boolean;   // club has a TTLock smart gate (env-only) → shows the "current code" button
 };
 
 const EMPTY: any = {
@@ -29,6 +30,8 @@ export default function SuperClubsPage() {
   const [saving, setSaving] = useState(false);
   const [rebuilding, setRebuilding] = useState<number | "all" | null>(null);
   const [query, setQuery] = useState("");
+  const [gateBusy, setGateBusy] = useState<number | null>(null);
+  const [gateCode, setGateCode] = useState<{ clubId: number; code: string; from: string; to: string } | null>(null);
 
   useEffect(() => {
     api.get("/users/me").then(r => {
@@ -100,6 +103,16 @@ export default function SuperClubsPage() {
     } finally { setRebuilding(null); }
   }
 
+  async function genGateCode(c: Club) {
+    setGateBusy(c.id); setMsg(""); setGateCode(null);
+    try {
+      const r = await api.post(`/admin/super/clubs/${c.id}/gate-code`);
+      setGateCode({ clubId: c.id, code: r.data.code, from: r.data.from, to: r.data.to });
+    } catch (e: any) {
+      setMsgOk(false); setMsg(e.response?.data?.detail || "שגיאה ביצירת קוד שער");
+    } finally { setGateBusy(null); }
+  }
+
   const q = query.trim().toLowerCase();
   const filtered = q
     ? clubs.filter(c => [c.club_name, c.area_name, c.city, c.contact_name, c.contact_phone, c.u_name]
@@ -165,6 +178,17 @@ export default function SuperClubsPage() {
                         <button onClick={() => rebuild(c.id, c.club_name)} disabled={rebuilding !== null} className="text-court hover:underline disabled:opacity-50">
                           {rebuilding === c.id ? "מעדכן..." : "עדכן זמינות"}
                         </button>
+                        {c.has_ttlock && (
+                          <button onClick={() => genGateCode(c)} disabled={gateBusy !== null} className="text-court hover:underline ml-3 disabled:opacity-50">
+                            {gateBusy === c.id ? "יוצר..." : "קוד שער"}
+                          </button>
+                        )}
+                        {gateCode && gateCode.clubId === c.id && (
+                          <div dir="ltr" className="mt-2 inline-flex items-center gap-2 bg-mint border border-court/30 rounded-lg px-3 py-1.5">
+                            <span className="text-lg font-bold tracking-widest text-court-dark">{gateCode.code}#</span>
+                            <span className="text-xs text-muted">{gateCode.from}–{gateCode.to}</span>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

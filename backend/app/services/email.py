@@ -116,7 +116,7 @@ def _booking_body(order, paid_by: str) -> str:
         from app.services.ttlock import gate_code_validity_text
         validity = gate_code_validity_text(order)
         html += (
-            f"<p align='right'>קוד כניסה לשער: <b style='font-size:1.3em'>{gate_code}</b></p>"
+            f"<p align='right'>קוד כניסה לשער: <b dir='ltr' style='font-size:1.3em'>{gate_code}#</b></p>"
             + _p(f"יש להקיש את הקוד על מקלדת המנעול בשער. הקוד בתוקף {validity}.".rstrip(" ."))
             + "<br>"
         )
