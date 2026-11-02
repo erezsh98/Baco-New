@@ -104,6 +104,15 @@ def main(argv: list[str]) -> int:
     print("=== lock capabilities ===")
     print(f"  name           : {detail.get('lockName') or detail.get('lockAlias')}")
     print(f"  battery        : {detail.get('electricQuantity')}%")
+    tz_ms = detail.get("timezoneRawOffset")
+    if tz_ms is None:
+        tz_txt = "(not reported)"
+    else:
+        tz_hours = tz_ms / 3_600_000
+        israel = " <- Israel standard (OK)" if tz_ms == 7_200_000 else (
+                 " <- UTC! offline PINs will be shifted" if tz_ms == 0 else " <- NOT Israel; offline PINs will be shifted")
+        tz_txt = f"{tz_ms} ms (UTC{tz_hours:+g}h){israel}"
+    print(f"  timezone       : {tz_txt}")
     print(f"  featureValue   : {fv}")
     print(f"  keypad (PIN)   : {'YES' if keypad else 'NO'}")
     print(f"  clock chip     : {'YES' if has_clock else 'NO'}")

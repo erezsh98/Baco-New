@@ -107,23 +107,29 @@ async def pelecard_success(request: Request, db: Session = Depends(get_db)):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
-    # Verify Pelecard charged the expected amount (agorot) — reject tampering.
-    if int(round((order.amount or 0) * 100)) != amount_agorot:
-        return _error_top("סכום שגוי")
+    # Idempotent: Pelecard hits this callback more than once (goodUrl and
+    # ValidateLink both point here, plus possible retries). Finalize + email only
+    # while the order is still pending; a repeat call just redirects, so the
+    # confirmation (and TTLock PIN) isn't sent twice. Mirrors the ticket handler.
+    if order.is_final != "Y":
+        # Verify Pelecard charged the expected amount (agorot) — reject tampering.
+        if int(round((order.amount or 0) * 100)) != amount_agorot:
+            return _error_top("סכום שגוי")
 
-    order.is_final = "Y"
-    order.approval_number = approval
-    order.token = token
-    db.commit()
+        order.is_final = "Y"
+        order.approval_number = approval
+        order.token = token
+        db.commit()
 
-    # Mint the TTLock gate PIN (if the club has a lock) before the email, so the
-    # confirmation carries the code. No-op for clubs without TTLock; never raises.
-    from app.services.ttlock import ensure_gate_code
-    ensure_gate_code(order, db)
+        # Mint the TTLock gate PIN (if the club has a lock) before the email, so the
+        # confirmation carries the code. No-op for clubs without TTLock; never raises.
+        from app.services.ttlock import ensure_gate_code
+        ensure_gate_code(order, db)
 
-    from app.services.email import send_booking_confirmation_cc
-    send_booking_confirmation_cc(order)
-    # TODO: gate/manager SMS once the SMS subsystem is wired
+        from app.services.email import send_booking_confirmation_cc
+        send_booking_confirmation_cc(order)
+        # TODO: gate/manager SMS once the SMS subsystem is wired
+
     return _redirect_top("/booking/thank-you")
 
 
