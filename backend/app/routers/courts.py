@@ -87,7 +87,10 @@ def search_courts(
     if from_hour is not None:
         query = query.filter(AvailableCourtSlot.hour >= from_hour)
     if to_hour is not None:
-        query = query.filter(AvailableCourtSlot.hour <= to_hour)
+        # to_hour is the END of the search window: a one-hour slot fits only if it
+        # finishes by to_hour, i.e. its start hour is strictly less than to_hour.
+        # (7→9 returns starts 7 and 8, not 9.)
+        query = query.filter(AvailableCourtSlot.hour < to_hour)
     if area_id:
         query = query.filter(Club.area_id == area_id)
     if club_id:
