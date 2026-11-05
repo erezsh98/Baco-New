@@ -111,7 +111,7 @@ export default function AdminPage() {
         <div className="bg-white rounded-xl shadow p-4 mb-4 flex flex-wrap gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-ink mb-1">מתאריך</label>
-            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+            <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setToDate(e.target.value); }}
               className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-court" />
           </div>
           <div>
